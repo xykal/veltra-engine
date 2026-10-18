@@ -1,6 +1,6 @@
 # VELTRA — Game Performance System
 
-**Rilis terbaru:** [v1.0.0 — DOU (First Drop)](https://github.com/xykal/veltra-engine/releases/tag/v1.0.0-dou) · APK 1.7 MB · AAB 3.2 MB
+**Rilis terbaru:** [v1.0.1 — Panel Overlay Siap Pakai](https://github.com/xykal/veltra-engine/releases/tag/v1.0.1) · APK 1.7 MB · AAB 3.3 MB
 
 [![Build](https://github.com/xykal/veltra-engine/actions/workflows/build.yml/badge.svg)](https://github.com/xykal/veltra-engine/actions/workflows/build.yml)
 ✅ **Build status: GREEN** — `assembleDebug` sukses (APK 12 MB)
@@ -32,6 +32,10 @@ veltra/
 ├── lottie/         → Launch animation JSON (<400KB)
 └── .github/workflows/build.yml → CI auto build APK/AAB
 ```
+
+### Flow utama (v1.0.1+)
+Tap game di VELTRA → bersihkan RAM → **panel overlay nyala** → game kebuka.
+Panel otomatis **sembunyi** saat keluar game (butuh izin Akses Penggunaan).
 
 ## LIVE GUARD — Live TikTok nggak boleh mati pas main game
 
