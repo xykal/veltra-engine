@@ -1,0 +1,42 @@
+[versions]
+agp = "8.5.2"
+kotlin = "2.0.20"
+composeCompiler = "2.0.20"
+compose-bom = "2024.09.03"
+hilt = "2.51.1"
+ksp = "2.0.20-1.0.25"
+coroutines = "1.8.1"
+lifecycle = "2.8.6"
+room = "2.6.1"
+datastore = "1.1.1"
+billing = "6.1.0"
+lottie = "6.6.0"
+playIntegrity = "1.3.0"
+savedstate = "1.2.1"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.13.1" }
+androidx-lifecycle-runtime = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version = "1.9.2" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+datastore-preferences-core = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
+billing = { module = "com.android.billingclient:billing-ktx", version.ref = "billing" }
+lottie-compose = { module = "com.airbnb.android:lottie-compose", version.ref = "lottie" }
+savedstate = { module = "androidx.savedstate:savedstate", version.ref = "savedstate" }
+play-integrity = { module = "com.google.android.play:integrity", version.ref = "playIntegrity" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "composeCompiler" }

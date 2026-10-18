@@ -1,0 +1,6 @@
+-keepattributes *Annotation*, InnerClasses, Signature, EnclosingMethod
+-keep class com.veltra.data.db.** { *; }
+-keep class * extends androidx.room.RoomDatabase { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class com.android.billingclient.api.** { *; }

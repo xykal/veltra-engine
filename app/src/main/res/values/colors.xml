@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="obsidian">#0A0E14</color>
+    <color name="graphite">#161C28</color>
+    <color name="cobalt">#2A64F6</color>
+    <color name="ion_cyan">#00D1FF</color>
+    <color name="titanium">#E6E8EC</color>
+    <color name="amber">#FFB800</color>
+    <color name="neo_mint">#00E6A0</color>
+</resources>

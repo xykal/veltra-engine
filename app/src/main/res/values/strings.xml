@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VELTRA</string>
+    <string name="subtitle">Game Launcher &amp; FPS Stabilizer</string>
+    <string name="overlay_permission_title">Izin Overlay</string>
+    <string name="overlay_permission_desc">VELTRA butuh izin overlay untuk menampilkan panel FPS di dalam game.</string>
+</resources>
