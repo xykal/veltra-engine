@@ -13,6 +13,8 @@ billing = "6.1.0"
 lottie = "6.6.0"
 playIntegrity = "1.3.0"
 savedstate = "1.2.1"
+navigation = "2.8.3"
+hiltNavigationCompose = "1.2.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.13.1" }
@@ -31,6 +33,8 @@ datastore-preferences-core = { module = "androidx.datastore:datastore-preference
 billing = { module = "com.android.billingclient:billing-ktx", version.ref = "billing" }
 lottie-compose = { module = "com.airbnb.android:lottie-compose", version.ref = "lottie" }
 savedstate = { module = "androidx.savedstate:savedstate", version.ref = "savedstate" }
+navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 play-integrity = { module = "com.google.android.play:integrity", version.ref = "playIntegrity" }
 
 [plugins]

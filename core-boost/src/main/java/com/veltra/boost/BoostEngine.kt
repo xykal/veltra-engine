@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.veltra.boost.live.LiveGuard
+import com.veltra.boost.live.LiveGuardProvider
+import com.veltra.boost.live.LiveWatchdog
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -69,13 +72,29 @@ class BoostEngine @Inject constructor(
         }
     }
 
-    /** 2. GameMode API (Android 13+) — minta sistem pakai mode performa. */
+    /**
+     * 2. GameMode API (Android 13+).
+     * Catatan jujur: Android 35 TIDAK mengekspos setGameMode() ke aplikasi pihak ketiga —
+     * yang tersedia publik hanya getGameMode() dan setGameState().
+     * Jadi kita laporkan state "sedang loading game yang tidak boleh diganggu",
+     * dan di situ sistem (yang mendukung) akan menaikkan performa sendiri.
+     */
     private fun applyGameMode(packageName: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        runCatching {
+        try {
             val gm = ctx.getSystemService(Context.GAME_SERVICE) as? android.app.GameManager
-            gm?.setGameMode(packageName, android.app.GameManager.GAME_MODE_PERFORMANCE)
-        }
+            gm?.setGameState(
+                android.app.GameState(
+                    true, // isLoading: minta sistem jangan ganggu proses loading
+                    android.app.GameState.MODE_GAMEPLAY_UNINTERRUPTIBLE
+                )
+            )
+            // Baca mode aktif — dipakai buat statistik & panel
+            val mode = gm?.getGameMode()
+            if (mode == android.app.GameManager.GAME_MODE_STANDARD) {
+                // Sistem belum kasih mode performa — tidak bisa dipaksa dari pihak ketiga.
+            }
+        } catch (_: Throwable) { /* ROM tertentu tidak punya GameManager */ }
     }
 
     /** 3. ADPF PerformanceHint (Android 12+) — hint ke scheduler saat frame kritis. */

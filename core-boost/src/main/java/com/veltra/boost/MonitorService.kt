@@ -22,7 +22,7 @@ class MonitorService : Service() {
     private var lastTs = 0L
     private var currentFps = 60
 
-    private val choreographerCallback = Choreographer.FrameCallback { ts ->
+    private val choreographerCallback: Choreographer.FrameCallback = Choreographer.FrameCallback { ts ->
         frames++
         if (lastTs == 0L) lastTs = ts
         val elapsedNs = ts - lastTs

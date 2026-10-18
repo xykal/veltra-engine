@@ -18,6 +18,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.veltra.boost.MetricsBus
 
@@ -30,13 +31,14 @@ import com.veltra.boost.MetricsBus
  *  - Drag bebas, posisi diingat
  *  - TIDAK menutup analog: default di kanan atas, bisa pindah kiri
  */
-class OverlayService : Service(), LifecycleOwner {
+class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private lateinit var wm: WindowManager
     private var panelView: ComposeView? = null
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedState = SavedStateRegistryController.create(this)
     override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val savedStateRegistry get() = savedState.savedStateRegistry
 
     private var expanded by mutableStateOf(false)
 
