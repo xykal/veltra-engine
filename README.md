@@ -1,4 +1,7 @@
 # VELTRA — Game Performance System
+
+[![Build](https://github.com/xykal/veltra-engine/actions/workflows/build.yml/badge.svg)](https://github.com/xykal/veltra-engine/actions/workflows/build.yml)
+✅ **Build status: GREEN** — `assembleDebug` sukses (APK 12 MB)
 > **All Device • All Games • Native Android (Kotlin + Compose)**
 
 **Status:** PRD v1.0 LOCKED — Ready to Build  
