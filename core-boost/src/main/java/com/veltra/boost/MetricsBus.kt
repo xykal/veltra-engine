@@ -22,6 +22,9 @@ object MetricsBus {
     private val _temp = MutableStateFlow(38)
     val temp: StateFlow<Int> = _temp.asStateFlow()
 
+    private val _fpsHistory = MutableStateFlow<List<Int>>(emptyList())
+    val fpsHistory: StateFlow<List<Int>> = _fpsHistory.asStateFlow()
+
     private val _status = MutableStateFlow("STABLE")
     val status: StateFlow<String> = _status.asStateFlow()
 
@@ -31,7 +34,10 @@ object MetricsBus {
 
     fun publishLive(alive: Boolean?) { _live.value = alive }
 
-    fun publishFps(v: Int) { _fps.value = v }
+    fun publishFps(v: Int) {
+        _fps.value = v
+        _fpsHistory.value = (_fpsHistory.value + v).takeLast(48)
+    }
     fun publishPing(v: Int) { _ping.value = v }
     fun publishTemp(v: Int) { _temp.value = v }
 

@@ -24,6 +24,7 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.veltra.boost.BoostEngine
 import com.veltra.boost.GameDetector
 import com.veltra.boost.MetricsBus
 import dagger.hilt.android.AndroidEntryPoint
@@ -45,6 +46,7 @@ import javax.inject.Inject
 class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     @Inject lateinit var gameDetector: GameDetector
+    @Inject lateinit var boostEngine: BoostEngine
 
     private lateinit var wm: WindowManager
     private var panelView: ComposeView? = null
@@ -57,6 +59,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private var expanded by mutableStateOf(false)
     private var visible by mutableStateOf(true)
+    private var autoHide = true
 
     override fun onCreate() {
         super.onCreate()
@@ -87,7 +90,12 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                         tempFlow = MetricsBus.temp,
                         statusFlow = MetricsBus.status,
                         liveFlow = MetricsBus.live,
-                        onStabilize = { com.veltra.boost.HintManager.setTargetFps(60) },
+                        onStabilize = {
+                            // Aman: cuma membersihkan proses CACHED — game & aplikasi
+                            // yang sedang dipakai tidak pernah disentuh.
+                            boostEngine.runSafeBoost()
+                            com.veltra.boost.HintManager.setTargetFps(60)
+                        },
                         onClose = { stopSelf() }
                     )
                 }
@@ -107,7 +115,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             while (isActive) {
                 val inGame = gameDetector.isInGame()
                 val usageGranted = gameDetector.hasUsageAccess()
-                val shouldShow = !usageGranted || inGame
+                val shouldShow = if (!autoHide || !usageGranted) true else inGame
                 if (shouldShow != visible) {
                     visible = shouldShow
                     panelView?.let { v ->
@@ -169,12 +177,15 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         super.onDestroy()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        autoHide = intent?.getBooleanExtra(EXTRA_AUTO_HIDE, true) ?: autoHide
+        return START_STICKY
+    }
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
         const val PANEL_W = 300
-        const val PANEL_H = 420
+        const val PANEL_H = 468
         const val COLLAPSED_W = 42
         const val COLLAPSED_H = 42
         const val CHANNEL_ID = "veltra_panel"
@@ -182,10 +193,14 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
         fun hasPermission(ctx: Context): Boolean = Settings.canDrawOverlays(ctx)
 
+        const val EXTRA_AUTO_HIDE = "auto_hide"
+
         /** Nyalakan panel. Harus dipanggil saat aplikasi masih di depan (Android 12+). */
-        fun start(ctx: Context) {
+        fun start(ctx: Context, autoHide: Boolean = true) {
             if (!hasPermission(ctx)) return
-            ctx.startForegroundService(Intent(ctx, OverlayService::class.java))
+            ctx.startForegroundService(
+                Intent(ctx, OverlayService::class.java).putExtra(EXTRA_AUTO_HIDE, autoHide)
+            )
         }
 
         fun stop(ctx: Context) = ctx.stopService(Intent(ctx, OverlayService::class.java))

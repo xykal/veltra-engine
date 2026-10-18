@@ -34,7 +34,8 @@ class LauncherViewModel @Inject constructor(
     private val repo: GameRepository,
     private val boost: BoostEngine,
     private val liveGuard: LiveGuard,
-    private val gameDetector: GameDetector
+    private val gameDetector: GameDetector,
+    private val settings: SettingsRepository
 ) : ViewModel() {
 
     val games: StateFlow<List<GameInfo>> = repo.observeGames()
@@ -43,6 +44,15 @@ class LauncherViewModel @Inject constructor(
 
     private val _stabilizing = MutableStateFlow(false)
     val stabilizing: StateFlow<Boolean> = _stabilizing.asStateFlow()
+
+    // ---------- PREFERENSI ----------
+    val autoHide: StateFlow<Boolean> =
+        settings.autoHide.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val autoStart: StateFlow<Boolean> =
+        settings.autoStart.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setAutoHide(v: Boolean) { viewModelScope.launch { settings.setAutoHide(v) } }
+    fun setAutoStart(v: Boolean) { viewModelScope.launch { settings.setAutoStart(v) } }
 
     // ---------- IZIN & PANEL ----------
     private val _overlayGranted = mutableStateOf(OverlayService.hasPermission(ctx))
@@ -75,9 +85,9 @@ class LauncherViewModel @Inject constructor(
 
     fun startPanel() {
         if (!OverlayService.hasPermission(ctx)) return
-        MonitorService.start(ctx)
-        OverlayService.start(ctx)
         _panelRunning.value = true
+        MonitorService.start(ctx)
+        OverlayService.start(ctx, autoHide.value)
     }
 
     fun stopPanel() {
@@ -89,6 +99,7 @@ class LauncherViewModel @Inject constructor(
     // ---------- LIVE GUARD ----------
     val streamApps: List<String> = StreamApps.installedStreamApps(ctx)
     val liveAlive: StateFlow<Boolean?> = MetricsBus.live
+    val fpsHistory: StateFlow<List<Int>> = MetricsBus.fpsHistory
 
     private val _memory = MutableStateFlow<LiveGuard.Memory?>(null)
     val memory: StateFlow<LiveGuard.Memory?> = _memory.asStateFlow()
@@ -134,9 +145,9 @@ class LauncherViewModel @Inject constructor(
      */
     fun launch(packageName: String) {
         boost.prepareFor(packageName)
-        if (OverlayService.hasPermission(ctx)) {
+        if (OverlayService.hasPermission(ctx) && autoStart.value) {
             MonitorService.start(ctx)
-            OverlayService.start(ctx)
+            OverlayService.start(ctx, autoHide.value)
             _panelRunning.value = true
         }
         ctx.packageManager.getLaunchIntentForPackage(packageName)
