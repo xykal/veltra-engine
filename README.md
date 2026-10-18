@@ -1,5 +1,7 @@
 # VELTRA — Game Performance System
 
+**Rilis terbaru:** [v1.0.0 — DOU (First Drop)](https://github.com/xykal/veltra-engine/releases/tag/v1.0.0-dou) · APK 1.7 MB · AAB 3.2 MB
+
 [![Build](https://github.com/xykal/veltra-engine/actions/workflows/build.yml/badge.svg)](https://github.com/xykal/veltra-engine/actions/workflows/build.yml)
 ✅ **Build status: GREEN** — `assembleDebug` sukses (APK 12 MB)
 > **All Device • All Games • Native Android (Kotlin + Compose)**
@@ -8,6 +10,11 @@
 **Brand:** VELTRA — Game Launcher & FPS Stabilizer  
 **Dashboard:** LOCKED (obsidian premium) — `veltra-dashboard-mockup.png`  
 **Panel:** V2 Premium HUD — `veltra-panel-v2-premium-hud.png`
+
+### Download & Install
+1. Buka [Releases](https://github.com/xykal/veltra-engine/releases)
+2. Unduh `veltra-release.apk` (1.7 MB)
+3. Install → buka → **izinkan Overlay** saat diminta
 
 ### Quick Start
 ```bash

@@ -12,8 +12,8 @@ android {
         applicationId = "com.veltra.engine"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0-dou"
+        versionCode = 2
+        versionName = "1.0.1-dev"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
