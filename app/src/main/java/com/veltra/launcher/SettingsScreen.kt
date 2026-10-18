@@ -38,6 +38,10 @@ fun SettingsScreen(
     val advResult by vm.advancedResult
     val advTarget by vm.advancedTarget
     val games by vm.games.collectAsState()
+    val crosshair by vm.crosshair.collectAsState()
+    val sensitivity by vm.sensitivity.collectAsState()
+    val lockedHz by vm.lockedHz.collectAsState()
+    val targetName = games.firstOrNull { it.packageName == advTarget }?.name ?: advTarget
 
     LaunchedEffect(Unit) { vm.refreshAdvanced() }
 
@@ -150,6 +154,32 @@ fun SettingsScreen(
         )
 
         Spacer(Modifier.height(18.dp))
+        SectionTitle("CROSSHAIR", "Gambar bantu bidik. Tidak menyentuh game sama sekali.")
+        CrosshairCard(
+            config = crosshair,
+            hasOverlayPermission = overlayOk,
+            onChange = { vm.setCrosshair(it) }
+        )
+
+        Spacer(Modifier.height(18.dp))
+        SectionTitle("LAYAR, FPS & SENSITIVITAS",
+            "Yang bisa dikunci dan yang tidak bisa — dibedakan jujur.")
+        SensitivityCard(
+            lockedHz = lockedHz,
+            advancedReady = vm.advancedReady,
+            statusText = advResult,
+            targetPkg = advTarget,
+            targetName = targetName,
+            sensitivity = sensitivity,
+            onLockHz = { vm.lockHz(it) },
+            onUnlockHz = { vm.unlockHz() },
+            onReadHz = { vm.readHz() },
+            onLockFps = { vm.lockFps(it) },
+            onUnlockFps = { vm.unlockFps() },
+            onSaveSensitivity = { vm.saveSensitivity(advTarget, it) }
+        )
+
+        Spacer(Modifier.height(18.dp))
         SectionTitle("TENTANG")
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -201,9 +231,13 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+private fun SectionTitle(text: String, hint: String? = null) {
     Text(text, color = VeltraColors.Muted, fontSize = 9.5.sp,
         fontWeight = FontWeight.SemiBold, letterSpacing = 2.5.sp)
+    if (hint != null) {
+        Spacer(Modifier.height(3.dp))
+        Text(hint, color = VeltraColors.Muted, fontSize = 9.sp, lineHeight = 13.sp)
+    }
     Spacer(Modifier.height(8.dp))
 }
 

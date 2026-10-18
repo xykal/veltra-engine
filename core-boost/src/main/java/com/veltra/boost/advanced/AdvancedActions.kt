@@ -179,6 +179,58 @@ class AdvancedActions(private val shell: PrivilegedShell) {
         return Result(true, "Turbo aktif: mode performance, resolusi internal ${(downscale*100).toInt()}%, AOT compile.")
     }
 
+    // ---------------------------------------------------------------
+    // 4b. REFRESH RATE & FPS (kunci 120Hz / 120fps)
+    // ---------------------------------------------------------------
+
+    /**
+     * Kunci refresh rate layar ke angka tertentu (60/90/120/144).
+     *   `settings put system peak_refresh_rate <hz>`
+     *   `settings put system min_refresh_rate <hz>`
+     *
+     * Jujur: ini cuma **permintaan** ke sistem. Kalau layar HP kamu cuma 60Hz,
+     * ya hasilnya tetap 60Hz. VELTRA tidak bisa menciptakan panel 120Hz.
+     * Sebagian ROM (terutama yang sudah punya mode "High refresh rate" sendiri)
+     * akan menimpa nilai ini — kalau gagal, VELTRA lapor apa adanya.
+     */
+    suspend fun lockRefreshRate(hz: Int): Result {
+        val v = hz.coerceIn(30, 240)
+        val a = sh("settings put system peak_refresh_rate $v && echo OK")
+        val b = sh("settings put system min_refresh_rate $v && echo OK")
+        val c = sh("settings put system touch_response_rate $v && echo OK") // abaikan kalau gagal
+        return if (a.isSuccess || b.isSuccess)
+            Result(true, "Refresh rate diminta ke ${v}Hz. Hasil akhir tergantung panel & ROM kamu.")
+        else Result(false, "Sistem menolak: ${a.exceptionOrNull()?.message ?: b.exceptionOrNull()?.message ?: "-"}")
+    }
+
+    /** Lepas kunci refresh rate — balik ke keputusan otomatis sistem. */
+    suspend fun unlockRefreshRate(): Result = toResult(
+        sh("settings delete system peak_refresh_rate && " +
+           "settings delete system min_refresh_rate && " +
+           "settings delete system touch_response_rate && echo OK")
+    )
+
+    /** Baca nilai refresh rate yang sedang berlaku (kalau ROM menyimpannya). */
+    suspend fun readRefreshRate(): String {
+        val peak = sh("settings get system peak_refresh_rate").getOrDefault("").trim()
+        val min = sh("settings get system min_refresh_rate").getOrDefault("").trim()
+        val user = sh("settings get system user_refresh_rate").getOrDefault("").trim()
+        val phys = sh("dumpsys display | grep -m1 'mPhysicalDisplayInfo'").getOrDefault("").trim()
+        return buildString {
+            appendLine("peak_refresh_rate = ${peak.ifBlank { "null (otomatis)" }}")
+            appendLine("min_refresh_rate  = ${min.ifBlank { "null (otomatis)" }}")
+            appendLine("user_refresh_rate = ${user.ifBlank { "null (otomatis)" }}")
+            if (phys.isNotBlank()) appendLine("panel: $phys")
+        }.trim()
+    }
+
+    /** Batas FPS lewat Game Mode intervention (`cmd game set --fps <n> <PKG>`). */
+    suspend fun lockGameFps(pkg: String, fps: Int): Result = setGameIntervention(pkg, 0f, fps)
+
+    /** Lepas batas FPS game. */
+    suspend fun unlockGameFps(pkg: String): Result =
+        toResult(sh("cmd game set --fps disable --downscale disable $pkg && echo OK"))
+
     /** Bersihkan cache semua aplikasi (`pm trim-caches`) — butuh akses shell/root. */
     suspend fun trimCaches(bytes: Long = 1_073_741_824L): Result = toResult(
         sh("pm trim-caches $bytes && echo OK")

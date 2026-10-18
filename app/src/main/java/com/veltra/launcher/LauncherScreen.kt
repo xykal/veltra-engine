@@ -36,7 +36,9 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Settings
 import androidx.core.graphics.drawable.toBitmap
 
 private val Mono = FontFamily.Monospace
@@ -57,6 +59,7 @@ fun LauncherScreen(
     val games by vm.games.collectAsState()
     val stabilizing by vm.stabilizing.collectAsState()
     val memory by vm.memory.collectAsState()
+    val crosshair by vm.crosshair.collectAsState()
 
     Scaffold(
         containerColor = VeltraColors.Obsidian,
@@ -114,6 +117,28 @@ fun LauncherScreen(
                     )
                 }
                 Spacer(Modifier.width(8.dp))
+                // tombol cepat crosshair
+                val chOn = crosshair.enabled
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(if (chOn) VeltraColors.NeoMint.copy(.14f) else VeltraColors.Graphite)
+                        .border(
+                            1.dp,
+                            if (chOn) VeltraColors.NeoMint.copy(.55f) else VeltraColors.Border,
+                            RoundedCornerShape(11.dp)
+                        )
+                        .clickable { vm.setCrosshair(crosshair.copy(enabled = !chOn)) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.CenterFocusStrong, null,
+                        tint = if (chOn) VeltraColors.NeoMint else VeltraColors.Muted,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
                 Box(
                     Modifier
                         .size(34.dp)
@@ -123,7 +148,8 @@ fun LauncherScreen(
                         .clickable { onSettings() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("⚙", color = VeltraColors.Muted, fontSize = 14.sp)
+                    Icon(Icons.Rounded.Settings, null, tint = VeltraColors.Muted,
+                        modifier = Modifier.size(17.dp))
                 }
             }
 

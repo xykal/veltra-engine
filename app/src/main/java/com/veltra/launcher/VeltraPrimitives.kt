@@ -180,11 +180,13 @@ object VeltraPrimitives {
         icon: ImageVector? = null,
         modifier: Modifier = Modifier,
         selected: Boolean = false,
+        enabled: Boolean = true,
         onClick: () -> Unit
     ) {
         val src = remember { MutableInteractionSource() }
         val pressed by src.collectIsPressedAsState()
-        val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(110), label = "g")
+        val scale by animateFloatAsState(if (pressed && enabled) 0.96f else 1f, tween(110), label = "g")
+        val dim = if (enabled) 1f else 0.42f
         val bg = if (selected) VeltraColors.IonCyan.copy(.13f) else VeltraColors.Graphite
         val bd = if (selected) VeltraColors.IonCyan.copy(.8f) else VeltraColors.Border
         Row(
@@ -193,16 +195,18 @@ object VeltraPrimitives {
                 .clip(RoundedCornerShape(12.dp))
                 .background(bg)
                 .border(1.dp, bd, RoundedCornerShape(12.dp))
-                .clickable(indication = null, interactionSource = src) { onClick() }
+                .clickable(enabled = enabled, indication = null, interactionSource = src) { onClick() }
                 .padding(horizontal = 13.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (icon != null) {
-                Icon(icon, null, tint = if (selected) VeltraColors.IonCyan else VeltraColors.Muted,
+                Icon(icon, null,
+                    tint = (if (selected) VeltraColors.IonCyan else VeltraColors.Muted).copy(dim),
                     modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(7.dp))
             }
-            Text(label, color = if (selected) VeltraColors.IonCyan else VeltraColors.Titanium,
+            Text(label,
+                color = (if (selected) VeltraColors.IonCyan else VeltraColors.Titanium).copy(dim),
                 fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp)
         }
     }

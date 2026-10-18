@@ -13,6 +13,8 @@ import com.veltra.boost.MonitorService
 import com.veltra.boost.live.LiveGuard
 import com.veltra.boost.live.StreamApps
 import com.veltra.data.GameRepository
+import com.veltra.overlay.crosshair.CrosshairConfig
+import com.veltra.overlay.crosshair.CrosshairService
 import com.veltra.overlay.OverlayService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -113,6 +115,77 @@ class LauncherViewModel @Inject constructor(
         runCatching { com.veltra.overlay.SidebarSide.valueOf(panelSide.value) }
             .getOrDefault(com.veltra.overlay.SidebarSide.RIGHT)
 
+    // ---------- CROSSHAIR ----------
+    val crosshair: StateFlow<CrosshairConfig> =
+        settings.crosshair.stateIn(viewModelScope, SharingStarted.Eagerly, CrosshairConfig())
+
+    val sensitivity: StateFlow<Map<String, String>> =
+        settings.sensitivity.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    val lockedHz: StateFlow<Int> =
+        settings.lockedHz.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    fun setCrosshair(c: CrosshairConfig) {
+        viewModelScope.launch {
+            settings.setCrosshair(c)
+            if (!c.enabled) {
+                CrosshairService.stop(ctx)
+            } else if (CrosshairService.hasPermission(ctx)) {
+                CrosshairService.start(ctx, c)
+            } else {
+                // belum diizinkan tampil di atas aplikasi lain → buka pengaturan
+                requestOverlay()
+            }
+        }
+    }
+
+    fun saveSensitivity(pkg: String, note: String) {
+        viewModelScope.launch { settings.setSensitivity(pkg, note) }
+    }
+
+    // ---------- KUNCI REFRESH RATE / FPS ----------
+    fun lockHz(hz: Int) {
+        viewModelScope.launch {
+            _advResult.value = "Menjalankan…"
+            val res = advanced.actions().lockRefreshRate(hz)
+            settings.setLockedHz(if (res.ok) hz else 0)
+            _advResult.value = if (res.ok) "✓ ${res.detail}" else "Gagal: ${res.detail}"
+        }
+    }
+
+    fun unlockHz() {
+        viewModelScope.launch {
+            val res = advanced.actions().unlockRefreshRate()
+            settings.setLockedHz(0)
+            _advResult.value = if (res.ok) "✓ Kunci refresh rate dilepas." else "Gagal: ${res.detail}"
+        }
+    }
+
+    fun readHz() {
+        viewModelScope.launch {
+            _advResult.value = "Membaca…"
+            _advResult.value = advanced.actions().readRefreshRate()
+        }
+    }
+
+    fun lockFps(fps: Int) {
+        viewModelScope.launch {
+            _advResult.value = "Menjalankan…"
+            val res = advanced.actions().lockGameFps(_advTarget.value, fps)
+            _advResult.value = if (res.ok)
+                "✓ Target FPS ${_advTarget.value} dikunci ke $fps. Restart gamenya."
+            else "Gagal: ${res.detail}"
+        }
+    }
+
+    fun unlockFps() {
+        viewModelScope.launch {
+            val res = advanced.actions().unlockGameFps(_advTarget.value)
+            _advResult.value = if (res.ok) "✓ Batas FPS dilepas. Restart gamenya."
+            else "Gagal: ${res.detail}"
+        }
+    }
+
     // ---------- IZIN & PANEL ----------
     private val _overlayGranted = mutableStateOf(OverlayService.hasPermission(ctx))
     val overlayGranted: State<Boolean> = _overlayGranted
@@ -147,11 +220,14 @@ class LauncherViewModel @Inject constructor(
         _panelRunning.value = true
         MonitorService.start(ctx)
         OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
+        // crosshair nyala bareng panel kalau memang diaktifkan
+        if (crosshair.value.enabled) CrosshairService.start(ctx, crosshair.value)
     }
 
     fun stopPanel() {
         OverlayService.stop(ctx)
         MonitorService.stop(ctx)
+        CrosshairService.stop(ctx)
         _panelRunning.value = false
     }
 

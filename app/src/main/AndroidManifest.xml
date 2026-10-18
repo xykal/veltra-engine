@@ -57,6 +57,15 @@
         </service>
 
         <service
+            android:name="com.veltra.overlay.crosshair.CrosshairService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-screen crosshair overlay for aiming reference" />
+        </service>
+
+        <service
             android:name="com.veltra.launcher.ocr.OcrCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection">
