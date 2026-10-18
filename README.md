@@ -1,6 +1,6 @@
 # VELTRA — Game Performance System
 
-**Rilis terbaru:** [v1.0.1 — Panel Overlay Siap Pakai](https://github.com/xykal/veltra-engine/releases/tag/v1.0.1) · APK 1.7 MB · AAB 3.3 MB
+**Rilis terbaru:** [v1.0.2 — UI Disamakan dengan Referensi](https://github.com/xykal/veltra-engine/releases/tag/v1.0.2) · APK 1.9 MB · AAB 3.6 MB
 
 [![Build](https://github.com/xykal/veltra-engine/actions/workflows/build.yml/badge.svg)](https://github.com/xykal/veltra-engine/actions/workflows/build.yml)
 ✅ **Build status: GREEN** — `assembleDebug` sukses (APK 12 MB)
