@@ -54,7 +54,10 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
     implementation(libs.hilt.android)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.navigation.compose)
     ksp(libs.hilt.compiler)
@@ -63,4 +66,6 @@ dependencies {
     implementation(libs.billing)
     implementation(libs.lottie.compose)
     implementation(libs.play.integrity)
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.coroutines.play.services)
 }

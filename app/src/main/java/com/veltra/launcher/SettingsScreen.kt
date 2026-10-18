@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +32,14 @@ fun SettingsScreen(
     val autoStart by vm.autoStart.collectAsState()
     val overlayOk by vm.overlayGranted
     val usageOk by vm.usageGranted
+    val mode by vm.panelMode.collectAsState()
+    val side by vm.panelSide.collectAsState()
+    val advLabel by vm.advancedLabel
+    val advResult by vm.advancedResult
+    val advTarget by vm.advancedTarget
+    val games by vm.games.collectAsState()
+
+    LaunchedEffect(Unit) { vm.refreshAdvanced() }
 
     Column(
         Modifier
@@ -80,6 +89,40 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(18.dp))
+        SectionTitle("GAYA PANEL")
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = VeltraColors.Graphite),
+            border = androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Text("Bentuk panel", color = VeltraColors.Muted, fontSize = 10.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StyleChip("HUD MENGAMBANG", "kapsul → panel 300×468, bisa digeser",
+                        selected = mode == "HUD", Modifier.weight(1f)) { vm.setPanelMode("HUD") }
+                    StyleChip("SIDEBAR ROG", "handle di tepi → panel geser 232dp",
+                        selected = mode == "SIDEBAR", Modifier.weight(1f)) { vm.setPanelMode("SIDEBAR") }
+                }
+                Spacer(Modifier.height(14.dp))
+                Text("Posisi sidebar", color = VeltraColors.Muted, fontSize = 10.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StyleChip("KIRI", "nempel di tepi kiri", selected = side == "LEFT",
+                        Modifier.weight(1f)) { vm.setPanelSide("LEFT") }
+                    StyleChip("KANAN", "nempel di tepi kanan", selected = side == "RIGHT",
+                        Modifier.weight(1f)) { vm.setPanelSide("RIGHT") }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Sidebar: ketuk handle buat buka/tutup, geser handle buat naik-turun. " +
+                            "HUD: ketuk kapsul buat expand.",
+                    color = Color(0xFF6B7588), fontSize = 9.sp, lineHeight = 13.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
         SectionTitle("IZIN")
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -91,6 +134,20 @@ fun SettingsScreen(
                 PermItem("Akses penggunaan", usageOk) { vm.requestUsage() }
             }
         }
+
+        Spacer(Modifier.height(18.dp))
+        SectionTitle("MODE LANJUT  (SHIZUKU / ROOT)")
+        AdvancedCard(
+            levelLabel = advLabel,
+            ready = vm.advancedReady,
+            lastResult = advResult,
+            onAction = { vm.runAdvanced(it) },
+            onRequestPermission = { vm.requestAdvancedPermission() },
+            onRefresh = { vm.refreshAdvanced() },
+            gameOptions = games.map { it.packageName to it.name },
+            targetPkg = advTarget,
+            onTarget = { vm.setAdvancedTarget(it) }
+        )
 
         Spacer(Modifier.height(18.dp))
         SectionTitle("TENTANG")
@@ -182,6 +239,40 @@ private fun ToggleRow(
                 uncheckedTrackColor = Color.White.copy(0.08f)
             )
         )
+    }
+}
+
+@Composable
+private fun StyleChip(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) VeltraColors.Cobalt.copy(0.16f) else Color.White.copy(0.03f))
+            .border(
+                1.dp,
+                if (selected) VeltraColors.IonCyan.copy(0.6f) else Color.White.copy(0.06f),
+                RoundedCornerShape(12.dp)
+            )
+            .clickable { onClick() }
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(7.dp).clip(CircleShape)
+                    .background(if (selected) VeltraColors.IonCyan else Color(0xFF6B7588))
+            )
+            Spacer(Modifier.width(7.dp))
+            Text(title, color = if (selected) VeltraColors.Titanium else VeltraColors.Muted,
+                fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(subtitle, color = Color(0xFF6B7588), fontSize = 8.5.sp, lineHeight = 12.sp)
     }
 }
 

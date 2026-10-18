@@ -8,6 +8,8 @@
     <!-- Foreground service untuk monitoring FPS/Ping/Temp -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Pembaca teks layar (Android 14 mewajibkan tipe ini) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Deteksi game yang sedang berjalan -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -52,6 +54,15 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="In-game performance overlay: FPS, ping, thermal monitoring" />
+        </service>
+
+        <service
+            android:name="com.veltra.launcher.ocr.OcrCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-device screen text recognition (no upload)" />
         </service>
 
         <service

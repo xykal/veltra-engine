@@ -35,7 +35,8 @@ class LauncherViewModel @Inject constructor(
     private val boost: BoostEngine,
     private val liveGuard: LiveGuard,
     private val gameDetector: GameDetector,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val advanced: com.veltra.boost.advanced.AdvancedManager
 ) : ViewModel() {
 
     val games: StateFlow<List<GameInfo>> = repo.observeGames()
@@ -51,8 +52,66 @@ class LauncherViewModel @Inject constructor(
     val autoStart: StateFlow<Boolean> =
         settings.autoStart.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
+    val panelMode: StateFlow<String> =
+        settings.panelMode.stateIn(viewModelScope, SharingStarted.Eagerly, "HUD")
+    val panelSide: StateFlow<String> =
+        settings.panelSide.stateIn(viewModelScope, SharingStarted.Eagerly, "RIGHT")
+
     fun setAutoHide(v: Boolean) { viewModelScope.launch { settings.setAutoHide(v) } }
     fun setAutoStart(v: Boolean) { viewModelScope.launch { settings.setAutoStart(v) } }
+    fun setPanelMode(v: String) { viewModelScope.launch { settings.setPanelMode(v) } }
+    fun setPanelSide(v: String) { viewModelScope.launch { settings.setPanelSide(v) } }
+
+    // ---------- MODE LANJUT (Shizuku / root) ----------
+    private val _advLabel = mutableStateOf(advanced.label())
+    val advancedLabel: State<String> get() = _advLabel
+
+    private val _advResult = mutableStateOf("")
+    val advancedResult: State<String> get() = _advResult
+
+    val advancedReady: Boolean get() = advanced.level() != com.veltra.boost.advanced.PrivilegedShell.Level.NONE
+
+    fun refreshAdvanced() { _advLabel.value = advanced.label() }
+
+    fun requestAdvancedPermission() {
+        advanced.requestShizukuPermission()
+        viewModelScope.launch {
+            delay(3_000)
+            _advLabel.value = advanced.label()
+        }
+    }
+
+    /** Game yang akan di-inject Game Mode-nya (default Free Fire Max). */
+    private val _advTarget = mutableStateOf("com.dts.freefiremax")
+    val advancedTarget: State<String> get() = _advTarget
+    fun setAdvancedTarget(pkg: String) { _advTarget.value = pkg }
+
+    fun runAdvanced(action: AdvancedAction) {
+        viewModelScope.launch {
+            _advResult.value = "Menjalankan…"
+            val livePkg = streamApps.firstOrNull()
+            val res: com.veltra.boost.advanced.AdvancedActions.Result = when (action) {
+                AdvancedAction.PROTECT_LIVE -> livePkg?.let { advanced.actions().protectLive(it) }
+                    ?: com.veltra.boost.advanced.AdvancedActions.Result(false, "Aplikasi live tidak ditemukan")
+                AdvancedAction.COOLING -> advanced.actions().coolingMode(true, false)
+                AdvancedAction.RES_DOWN -> advanced.actions().setResolutionScale(0.85f)
+                AdvancedAction.RES_RESET -> advanced.actions().resetResolution()
+                AdvancedAction.FREEZE_BLOAT -> advanced.actions().freezeBloat(advanced.commonBloat())
+                AdvancedAction.TURBO_GAME -> advanced.actions().turboGame(_advTarget.value, 0.75f)
+                AdvancedAction.RESET_GAME -> advanced.actions().resetGameMode(_advTarget.value)
+                AdvancedAction.COMPILE_GAME -> advanced.actions().compileGame(_advTarget.value, "speed")
+            }
+            _advResult.value = if (res.ok) "✓ ${res.detail}" else "Gagal: ${res.detail}"
+        }
+    }
+
+    private fun panelMode(): com.veltra.overlay.PanelMode =
+        runCatching { com.veltra.overlay.PanelMode.valueOf(panelMode.value) }
+            .getOrDefault(com.veltra.overlay.PanelMode.HUD)
+
+    private fun panelSide(): com.veltra.overlay.SidebarSide =
+        runCatching { com.veltra.overlay.SidebarSide.valueOf(panelSide.value) }
+            .getOrDefault(com.veltra.overlay.SidebarSide.RIGHT)
 
     // ---------- IZIN & PANEL ----------
     private val _overlayGranted = mutableStateOf(OverlayService.hasPermission(ctx))
@@ -87,7 +146,7 @@ class LauncherViewModel @Inject constructor(
         if (!OverlayService.hasPermission(ctx)) return
         _panelRunning.value = true
         MonitorService.start(ctx)
-        OverlayService.start(ctx, autoHide.value)
+        OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
     }
 
     fun stopPanel() {
@@ -147,7 +206,7 @@ class LauncherViewModel @Inject constructor(
         boost.prepareFor(packageName)
         if (OverlayService.hasPermission(ctx) && autoStart.value) {
             MonitorService.start(ctx)
-            OverlayService.start(ctx, autoHide.value)
+            OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
             _panelRunning.value = true
         }
         ctx.packageManager.getLaunchIntentForPackage(packageName)

@@ -3,7 +3,6 @@ package com.veltra.overlay
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -32,15 +31,16 @@ import kotlinx.coroutines.*
 import javax.inject.Inject
 
 /**
- * Floating Panel VELTRA — HUD Premium (V2)
+ * Floating Panel VELTRA.
  *
- * Perilaku:
- *  - Kapsul mini 42dp nempel di pinggir
- *  - Tap → expand jadi HUD 300x420 (FPS gauge, ping wave, temp, STABILIZE hexagon)
- *  - **Auto-hide di luar game**: kalau user keluar game, panel menghilang sendiri
- *    (butuh izin "Akses Penggunaan"; tanpa izin panel tetap tampil terus)
- *  - Jalan sebagai **foreground service** supaya tidak jadi korban pertama
- *    saat sistem membunuh aplikasi background — ini kunci buat HP kentang.
+ * Dua gaya:
+ *  - **HUD**     : kapsul mini → panel 300×468 mengambang (bisa digeser)
+ *  - **SIDEBAR** : handle 20dp nempel kiri/kanan → panel 232×460 geser keluar (gaya ROG)
+ *
+ * Perilaku bersama:
+ *  - Auto-hide di luar game (butuh izin Akses Penggunaan)
+ *  - Jalan sebagai foreground service supaya nggak jadi korban pertama saat
+ *    sistem membunuh aplikasi background.
  */
 @AndroidEntryPoint
 class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
@@ -59,7 +59,11 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private var expanded by mutableStateOf(false)
     private var visible by mutableStateOf(true)
+
+    private var mode = PanelMode.HUD
+    private var side = SidebarSide.RIGHT
     private var autoHide = true
+    private var posY = 140
 
     override fun onCreate() {
         super.onCreate()
@@ -81,8 +85,25 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             setViewTreeLifecycleOwner(this@OverlayService)
             setViewTreeSavedStateRegistryOwner(this@OverlayService)
             setContent {
-                if (visible) {
-                    VeltraHud(
+                if (!visible) return@setContent
+                when (mode) {
+                    PanelMode.SIDEBAR -> VeltraSidebar(
+                        expanded = expanded,
+                        onExpandChange = { expanded = it; relayout() },
+                        onDrag = { dy -> posY = (posY + dy.toInt()).coerceIn(0, 1_200); relayout() },
+                        fpsFlow = MetricsBus.fps,
+                        pingFlow = MetricsBus.ping,
+                        tempFlow = MetricsBus.temp,
+                        statusFlow = MetricsBus.status,
+                        liveFlow = MetricsBus.live,
+                        onStabilize = {
+                            boostEngine.runSafeBoost()
+                            com.veltra.boost.HintManager.setTargetFps(60)
+                        },
+                        onClose = { stopSelf() },
+                        side = side
+                    )
+                    PanelMode.HUD -> VeltraHud(
                         expanded = expanded,
                         onExpandChange = { expanded = it; relayout() },
                         fpsFlow = MetricsBus.fps,
@@ -91,8 +112,6 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                         statusFlow = MetricsBus.status,
                         liveFlow = MetricsBus.live,
                         onStabilize = {
-                            // Aman: cuma membersihkan proses CACHED — game & aplikasi
-                            // yang sedang dipakai tidak pernah disentuh.
                             boostEngine.runSafeBoost()
                             com.veltra.boost.HintManager.setTargetFps(60)
                         },
@@ -102,25 +121,41 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             }
         }
         panelView = view
-        wm.addView(view, buildParams(expanded))
+        wm.addView(view, buildParams())
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
     }
 
     /**
-     * Sembunyikan panel kalau user sudah keluar dari game.
-     * Tanpa ini panel akan menutupi WhatsApp/Chrome dan bikin user sebel.
+     * Auto-hide yang AMAN.
+     * Aturan baru (hasil bug report user: panel hilang sendiri di dalam game):
+     *  - Tidak pernah sembunyi kalau aplikasi depan tidak dikenali (foregroundPackage null)
+     *  - Harus 3x berturut-turut yakin bukan game, baru sembunyi
+     *  - Grace period 20 detik sejak service nyala (hindari salah deteksi saat game loading)
      */
     private fun startAutoHideWatcher() {
         scope.launch {
+            val startAt = System.currentTimeMillis()
+            var outsideStreak = 0
             while (isActive) {
-                val inGame = gameDetector.isInGame()
                 val usageGranted = gameDetector.hasUsageAccess()
-                val shouldShow = if (!autoHide || !usageGranted) true else inGame
+                val fg = if (usageGranted) gameDetector.foregroundPackage() else null
+                val inGame = fg != null && gameDetector.isGame(fg)
+
+                val shouldShow = when {
+                    !autoHide -> true
+                    !usageGranted -> true
+                    fg == null -> true                              // tidak tahu → jangan sembunyi
+                    System.currentTimeMillis() - startAt < 20_000 -> true
+                    inGame -> true.also { outsideStreak = 0 }
+                    else -> {
+                        outsideStreak++
+                        outsideStreak < 3                           // butuh 3x yakin (~9 detik)
+                    }
+                }
+
                 if (shouldShow != visible) {
                     visible = shouldShow
-                    panelView?.let { v ->
-                        runCatching { wm.updateViewLayout(v, buildParams(expanded)) }
-                    }
+                    applyVisibility(shouldShow)
                 }
                 delay(3_000)
             }
@@ -128,29 +163,54 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     private fun relayout() {
-        panelView?.let { v ->
-            runCatching { wm.updateViewLayout(v, buildParams(expanded)) }
+        panelView?.let { v -> runCatching { wm.updateViewLayout(v, buildParams()) } }
+    }
+
+    /** Sembunyikan = cabut view beneran. Menyisakan window transparan bikin layar mati. */
+    private fun applyVisibility(show: Boolean) {
+        if (show) {
+            if (panelView == null) attachPanel()
+            else relayout()
+        } else {
+            panelView?.let { v ->
+                runCatching { wm.removeView(v) }
+                panelView = null
+            }
         }
     }
 
-    private fun buildParams(expanded: Boolean): WindowManager.LayoutParams {
+    private fun buildParams(): WindowManager.LayoutParams {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else
             @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
 
+        val (w, h) = when (mode) {
+            PanelMode.SIDEBAR ->
+                (if (expanded) SIDEBAR_W else HANDLE_W) to (if (expanded) SIDEBAR_H else HANDLE_H)
+            PanelMode.HUD ->
+                (if (expanded) PANEL_W else COLLAPSED_W) to (if (expanded) PANEL_H else COLLAPSED_H)
+        }
+
+        val gravity = when (mode) {
+            PanelMode.SIDEBAR -> Gravity.TOP or
+                    (if (side == SidebarSide.RIGHT) Gravity.END else Gravity.START)
+            PanelMode.HUD -> Gravity.TOP or Gravity.END
+        }
+
         return WindowManager.LayoutParams(
-            if (expanded) PANEL_W else COLLAPSED_W,
-            if (expanded) PANEL_H else COLLAPSED_H,
-            type,
+            w, h, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    // KUNCI: tanpa flag ini, seluruh layar dianggap tertutup window
+                    // → muncul "area mati" & ghost touch di dalam game.
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = 8
-            y = 140
+            this.gravity = gravity
+            x = 0
+            y = posY
         }
     }
 
@@ -170,6 +230,20 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            autoHide = it.getBooleanExtra(EXTRA_AUTO_HIDE, autoHide)
+            val modeName = it.getStringExtra(EXTRA_MODE)
+            if (!modeName.isNullOrBlank()) mode = runCatching { PanelMode.valueOf(modeName) }
+                .getOrDefault(PanelMode.HUD)
+            val sideName = it.getStringExtra(EXTRA_SIDE)
+            if (!sideName.isNullOrBlank()) side = runCatching { SidebarSide.valueOf(sideName) }
+                .getOrDefault(SidebarSide.RIGHT)
+        }
+        relayout()
+        return START_STICKY
+    }
+
     override fun onDestroy() {
         scope.cancel()
         panelView?.let { runCatching { wm.removeView(it) } }
@@ -177,29 +251,42 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         super.onDestroy()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        autoHide = intent?.getBooleanExtra(EXTRA_AUTO_HIDE, true) ?: autoHide
-        return START_STICKY
-    }
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        // HUD
         const val PANEL_W = 300
         const val PANEL_H = 468
-        const val COLLAPSED_W = 42
-        const val COLLAPSED_H = 42
+        const val COLLAPSED_W = 46
+        const val COLLAPSED_H = 46
+        // Sidebar
+        const val SIDEBAR_W = 232
+        const val SIDEBAR_H = 460
+        const val HANDLE_W = 20
+        const val HANDLE_H = 118
+
         const val CHANNEL_ID = "veltra_panel"
         const val NOTIF_ID = 4318
 
+        const val EXTRA_AUTO_HIDE = "auto_hide"
+        const val EXTRA_MODE = "panel_mode"
+        const val EXTRA_SIDE = "panel_side"
+
         fun hasPermission(ctx: Context): Boolean = Settings.canDrawOverlays(ctx)
 
-        const val EXTRA_AUTO_HIDE = "auto_hide"
-
         /** Nyalakan panel. Harus dipanggil saat aplikasi masih di depan (Android 12+). */
-        fun start(ctx: Context, autoHide: Boolean = true) {
+        fun start(
+            ctx: Context,
+            autoHide: Boolean = true,
+            mode: PanelMode = PanelMode.HUD,
+            side: SidebarSide = SidebarSide.RIGHT
+        ) {
             if (!hasPermission(ctx)) return
             ctx.startForegroundService(
-                Intent(ctx, OverlayService::class.java).putExtra(EXTRA_AUTO_HIDE, autoHide)
+                Intent(ctx, OverlayService::class.java)
+                    .putExtra(EXTRA_AUTO_HIDE, autoHide)
+                    .putExtra(EXTRA_MODE, mode.name)
+                    .putExtra(EXTRA_SIDE, side.name)
             )
         }
 

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -14,9 +15,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -26,6 +30,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.veltra.core.VeltraColors
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.core.graphics.drawable.toBitmap
 
 private val Mono = FontFamily.Monospace
 
@@ -37,6 +49,9 @@ private val Mono = FontFamily.Monospace
 @Composable
 fun LauncherScreen(
     onSettings: () -> Unit,
+    onOcr: () -> Unit = {},
+    onJunk: () -> Unit = {},
+    onApps: () -> Unit = {},
     vm: LauncherViewModel = hiltViewModel()
 ) {
     val games by vm.games.collectAsState()
@@ -141,6 +156,8 @@ fun LauncherScreen(
             PermissionCard(vm = vm)
             Spacer(Modifier.height(12.dp))
             LiveGuardCard(vm = vm)
+            Spacer(Modifier.height(16.dp))
+            ToolsRow(onOcr = onOcr, onJunk = onJunk, onApps = onApps)
             Spacer(Modifier.height(18.dp))
 
             Text(
@@ -191,31 +208,74 @@ private fun RowScope.RamBar(usedRatio: Float) {
 
 @Composable
 private fun GameCard(game: GameInfo, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = VeltraColors.Graphite),
-        border = androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(VeltraColors.Cobalt, VeltraColors.IonCyan)
-                            )
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val icon = remember(game.packageName) {
+        runCatching {
+            ctx.packageManager.getApplicationIcon(game.packageName)
+                .toBitmap(128, 128).asImageBitmap()
+        }.getOrNull()
+    }
+    val inf = rememberInfiniteTransition(label = "gc")
+    val sweep by inf.animateFloat(
+        -0.4f, 1.5f,
+        infiniteRepeatable(tween(5200, easing = LinearEasing)), label = "sweep"
+    )
+    val shape = remember { CutCornerShape(cut = 18f) }
+
+    Box(
+        Modifier
+            .clip(shape)
+            .background(VeltraColors.Graphite)
+            .border(1.dp, VeltraColors.Border, shape)
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    Brush.linearGradient(
+                        listOf(
+                            Color.Transparent,
+                            VeltraColors.IonCyan.copy(0.07f),
+                            Color.Transparent
                         ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        game.name.take(2).uppercase(),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        start = Offset(size.width * sweep - size.width * 0.4f, 0f),
+                        end = Offset(size.width * sweep, size.height)
+                    ), blendMode = BlendMode.Screen
+                )
+            }
+            .clickable { onClick() }
+            .padding(14.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // ikon asli game, dibingkai sudut potong khas VELTRA
+                Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .size(46.dp)
+                            .clip(CutCornerShape(cut = 10f))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(VeltraColors.Cobalt.copy(.85f), VeltraColors.IonCyan.copy(.65f))
+                                )
+                            )
                     )
+                    Box(
+                        Modifier
+                            .size(42.dp)
+                            .clip(CutCornerShape(cut = 9f))
+                            .background(Color(0xFF0C121C)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (icon != null) {
+                            Image(icon, null, Modifier.size(30.dp))
+                        } else {
+                            Text(
+                                game.name.take(2).uppercase(),
+                                color = VeltraColors.IonCyan,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
@@ -241,9 +301,16 @@ private fun GameCard(game: GameInfo, onClick: () -> Unit) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(9.dp))
                     .background(VeltraColors.Cobalt.copy(0.14f))
+                    .border(1.dp, VeltraColors.IonCyan.copy(.22f), RoundedCornerShape(9.dp))
                     .padding(vertical = 7.dp),
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Icon(
+                    Icons.Rounded.PlayArrow, null, tint = VeltraColors.IonCyan,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(Modifier.width(5.dp))
                 Text(
                     "LAUNCH",
                     color = VeltraColors.IonCyan,

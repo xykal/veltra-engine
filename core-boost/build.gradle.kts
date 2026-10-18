@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":data"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.hilt.android)
+    implementation(libs.shizuku.api)
     ksp(libs.hilt.compiler)
     implementation(libs.datastore.preferences)
 }

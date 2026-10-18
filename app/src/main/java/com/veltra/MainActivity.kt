@@ -12,6 +12,9 @@ import com.veltra.core.LaunchSplash
 import com.veltra.core.VeltraTheme
 import com.veltra.launcher.LauncherScreen
 import com.veltra.launcher.SettingsScreen
+import com.veltra.launcher.ocr.OcrScreen
+import com.veltra.launcher.tools.AppsScreen
+import com.veltra.launcher.tools.JunkScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -33,8 +36,18 @@ fun VeltraRoot() {
         } else {
             val nav = rememberNavController()
             NavHost(navController = nav, startDestination = "launcher") {
-                composable("launcher") { LauncherScreen(onSettings = { nav.navigate("settings") }) }
+                composable("launcher") {
+                    LauncherScreen(
+                        onSettings = { nav.navigate("settings") },
+                        onOcr = { nav.navigate("ocr") },
+                        onJunk = { nav.navigate("junk") },
+                        onApps = { nav.navigate("apps") }
+                    )
+                }
                 composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
+                composable("ocr") { OcrScreen(onBack = { nav.popBackStack() }) }
+                composable("junk") { JunkScreen(onBack = { nav.popBackStack() }) }
+                composable("apps") { AppsScreen(onBack = { nav.popBackStack() }) }
             }
         }
     }
