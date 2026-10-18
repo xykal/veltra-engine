@@ -23,15 +23,20 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v3
 
-      - name: Decode Keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/veltra.jks"
+      - name: Prepare signing
+        run: |
+          if [ -n "${KEYSTORE_B64}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/veltra.jks"
+            echo "KEYSTORE_PATH=$GITHUB_WORKSPACE/veltra.jks" >> "$GITHUB_ENV"
+          else
+            echo "Keystore tidak tersedia → AAB akan di-build tanpa tanda tangan."
+          fi
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build AAB
         run: ./gradlew bundleRelease
         env:
-          # Kosongkan path kalau keystore tidak tersedia → Gradle pakai konfigurasi unsigned
-          KEYSTORE_PATH: ${{ secrets.KEYSTORE_BASE64 != '' && format('{0}/veltra.jks', github.workspace) || '' }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
