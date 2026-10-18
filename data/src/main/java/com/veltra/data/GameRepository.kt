@@ -31,15 +31,16 @@ class GameRepository @Inject constructor(
 
     fun scan(): List<GameEntity> {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val resolveFlags = if (android.os.Build.VERSION.SDK_INT >= 33)
-            PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
-        else 0
-
         @Suppress("DEPRECATION")
-        val apps = if (android.os.Build.VERSION.SDK_INT >= 33)
-            pm.queryIntentActivities(intent, resolveFlags)
-        else
-            pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        val apps: List<android.content.pm.ResolveInfo> =
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                pm.queryIntentActivities(
+                    intent,
+                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+                )
+            } else {
+                pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            }
 
         return apps.mapNotNull { ri ->
             val pkg = ri.activityInfo.packageName

@@ -1,0 +1,26 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/user/veltra/data/src/main/AndroidManifest.xml:2:1-7:12
+INJECTED from /home/user/veltra/data/src/main/AndroidManifest.xml:2:1-7:12
+	package
+		INJECTED from /home/user/veltra/data/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/user/veltra/data/src/main/AndroidManifest.xml:2:11-69
+uses-permission#android.permission.QUERY_ALL_PACKAGES
+ADDED from /home/user/veltra/data/src/main/AndroidManifest.xml:3:5-5:58
+	xmlns:tools
+		ADDED from /home/user/veltra/data/src/main/AndroidManifest.xml:5:9-55
+	tools:ignore
+		ADDED from /home/user/veltra/data/src/main/AndroidManifest.xml:4:9-50
+	android:name
+		ADDED from /home/user/veltra/data/src/main/AndroidManifest.xml:3:22-74
+application
+ADDED from /home/user/veltra/data/src/main/AndroidManifest.xml:6:5-20
+uses-sdk
+INJECTED from /home/user/veltra/data/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /home/user/veltra/data/src/main/AndroidManifest.xml
+INJECTED from /home/user/veltra/data/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /home/user/veltra/data/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /home/user/veltra/data/src/main/AndroidManifest.xml
