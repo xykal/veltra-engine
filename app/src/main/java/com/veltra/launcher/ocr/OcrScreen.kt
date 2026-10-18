@@ -391,6 +391,7 @@ private fun HonestNote() {
             letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         listOf(
+            "• Model OCR tidak dibawa di dalam APK (biar ukurannya tetap ±2 MB, bukan 44 MB). Model diunduh sekali saat instal lewat Layanan Google Play — setelah itu pembacaan murni offline. HP tanpa Layanan Google Play tidak bisa pakai fitur ini.",
             "• Android tidak mengizinkan satu aplikasi membaca layar aplikasi lain secara diam-diam. Jalan satu-satunya yang sah adalah izin tangkap layar sistem — layar akan muncul dialog konfirmasi dan ada ikon siaran di status bar.",
             "• Yang diterima VELTRA cuma GAMBAR layar. Teksnya dibaca oleh OCR offline (ML Kit) di HP kamu. Tidak ada gambar atau teks yang dikirim ke server mana pun.",
             "• Layar yang dikunci sistem (aplikasi bank, pembayaran, DRM, beberapa obrolan) akan tertangkap hitam — itu aturan Android, bukan bug. VELTRA akan bilang jujur kalau layar tidak bisa dibaca.",

@@ -68,7 +68,7 @@ class AdvancedActions(private val shell: PrivilegedShell) {
         if (scale !in 0.5f..1.0f) return Result(false, "Skala harus antara 0.5 – 1.0")
         val w = readInt("wm size | awk 'END{print $1}' | cut -d x -f1")
         val h = readInt("wm size | awk 'END{print $1}' | cut -d x -f2")
-        val dw = readInt("wm density | awk 'END{print $NF}'")
+        val dw = readInt("wm density | awk 'END{print \$NF}'")
         if (w <= 0 || h <= 0) return Result(false, "Tidak bisa membaca resolusi awal")
         return toResult(
             sh("wm size ${(w * scale).toInt()}x${(h * scale).toInt()} && " +

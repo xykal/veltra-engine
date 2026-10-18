@@ -86,5 +86,11 @@
         <meta-data
             android:name="android.game_mode_config"
             android:resource="@xml/game_mode_config" />
+
+        <!-- Model OCR diunduh sekali saat instal (lewat Layanan Google Play),
+             bukan dibawa di dalam APK (nggak bikin APK jadi 44 MB) -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
     </application>
 </manifest>

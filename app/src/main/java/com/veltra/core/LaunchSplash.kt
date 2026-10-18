@@ -148,7 +148,7 @@ fun LaunchSplash(onFinished: () -> Unit) {
             // partikel orbit
             for (i in 0 until 7) {
                 val ang = Math.toRadians((particles + i * (360f / 7f)).toDouble())
-                val pr = r * (0.86f + 0.06f * sin(ang * 3))
+                val pr = (r * (0.86f + 0.06f * sin(ang * 3).toFloat())).toFloat()
                 drawCircle(
                     color = if (i % 2 == 0) VeltraColors.IonCyan else VeltraColors.Cobalt,
                     radius = (2.2f + 1.1f * pulse).dp.toPx(),

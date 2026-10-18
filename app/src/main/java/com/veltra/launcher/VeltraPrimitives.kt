@@ -157,7 +157,7 @@ object VeltraPrimitives {
                         )
                     }
                 }
-                .clickable(enabledNow, interactionSource = src, indication = null) { onClick() },
+                .clickable(enabled = enabledNow, interactionSource = src, indication = null) { onClick() },
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

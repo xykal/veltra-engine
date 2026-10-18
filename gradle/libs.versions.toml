@@ -16,7 +16,7 @@ savedstate = "1.2.1"
 navigation = "2.8.3"
 hiltNavigationCompose = "1.2.0"
 shizuku = "13.1.5"
-mlkit = "16.0.1"
+mlkit = "19.0.1"
 coil = "2.6.0"
 
 [libraries]
@@ -42,7 +42,7 @@ shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 play-integrity = { module = "com.google.android.play:integrity", version.ref = "playIntegrity" }
 compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
-mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit" }
+mlkit-text-recognition = { module = "com.google.android.gms:play-services-mlkit-text-recognition", version.ref = "mlkit" }
 coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 
 [plugins]

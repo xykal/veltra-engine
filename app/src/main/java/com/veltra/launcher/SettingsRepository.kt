@@ -105,12 +105,15 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setSensitivity(pkg: String, note: String) {
         ctx.veltraSettings.edit { p ->
-            val map = (p[Keys.SENS] ?: "").split(";").mapNotNull { row ->
+            val map = java.util.HashMap<String, String>()
+            (p[Keys.SENS] ?: "").split(";").forEach { row ->
                 val i = row.indexOf('=')
-                if (i <= 0) null else row.substring(0, i) to row.substring(i + 1)
-            }.toMutableMap()
+                if (i > 0 && i < row.length - 1) {
+                    map[row.substring(0, i)] = row.substring(i + 1)
+                }
+            }
             map[pkg] = note
-            p[Keys.SENS] = map.entries.joinToString(";") { "${it.key}=${it.value}" }
+            p[Keys.SENS] = map.entries.joinToString(";") { e -> "${e.key}=${e.value}" }
         }
     }
 

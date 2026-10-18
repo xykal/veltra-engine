@@ -80,6 +80,14 @@ class OcrViewModel @Inject constructor(
     }
 
     fun read(bmp: Bitmap) = viewModelScope.launch {
+        if (!reader.available()) {
+            _state.value = _state.value.copy(
+                phase = OcrPhase.ERROR, bitmap = bmp,
+                message = "HP ini tidak punya Layanan Google Play, jadi model OCR tidak tersedia. " +
+                        "Fitur pembaca teks nonaktif di perangkat ini — fitur lain VELTRA tetap jalan."
+            )
+            return@launch
+        }
         _state.value = _state.value.copy(phase = OcrPhase.READING, bitmap = bmp, message = "")
         delay(120) // kasih waktu render
         val res = runCatching { reader.read(bmp, ReadSource.SCREEN) }.getOrNull()

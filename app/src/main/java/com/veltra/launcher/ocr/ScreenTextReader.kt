@@ -27,14 +27,26 @@ data class ReadResult(
 enum class ReadSource { SCREEN, FILE }
 
 /**
- * OCR di perangkat (ML Kit, 100% offline, tanpa unggah ke mana pun).
- * Bitmap-nya diproses di memori dan tidak pernah disimpan kalau pengguna tidak
- * menyuruhnya.
+ * OCR di perangkat (ML Kit via Layanan Google Play, **100% offline setelah model
+ * terpasang** — tidak ada gambar atau teks yang dikirim ke server mana pun).
+ *
+ * Kenapa modelnya tidak dibawa di dalam APK: model OCR berukuran belasan MB.
+ * Versi "terbundel" bikin APK VELTRA jadi 44 MB. Dengan versi ini APK tetap
+ * ~2 MB dan modelnya diunduh sekali saat instal lewat Layanan Google Play.
+ * Konsekuensinya: HP tanpa Layanan Google Play tidak bisa pakai fitur ini.
+ *
+ * Bitmap-nya diproses di memori dan tidak pernah disimpan ke galeri.
  */
 @Singleton
 class ScreenTextReader @Inject constructor() {
 
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+
+    /** Model tersedia di perangkat ini? (butuh Layanan Google Play) */
+    fun available(): Boolean = runCatching {
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        true
+    }.getOrDefault(false)
 
     suspend fun read(bitmap: Bitmap, source: ReadSource): ReadResult = withContext(Dispatchers.IO) {
         val vision: Text = recognizer.process(InputImage.fromBitmap(bitmap, 0)).await()

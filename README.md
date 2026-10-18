@@ -1,6 +1,6 @@
 # VELTRA — Game Performance System
 
-**Rilis terbaru:** [v1.0.2 — UI Disamakan dengan Referensi](https://github.com/xykal/veltra-engine/releases/tag/v1.0.2) · APK 1.9 MB · AAB 3.6 MB
+**Rilis terbaru:** [v1.0.3 — Crosshair • Pembaca Teks • Pembersih • Game Mode](https://github.com/xykal/veltra-engine/releases/tag/v1.0.3) · APK 2.3 MB · AAB 5.0 MB
 
 [![Build](https://github.com/xykal/veltra-engine/actions/workflows/build.yml/badge.svg)](https://github.com/xykal/veltra-engine/actions/workflows/build.yml)
 ✅ **Build status: GREEN** — `assembleDebug` sukses (APK 12 MB)
@@ -13,7 +13,7 @@
 
 ### Download & Install
 1. Buka [Releases](https://github.com/xykal/veltra-engine/releases)
-2. Unduh `veltra-release.apk` (1.7 MB)
+2. Unduh `veltra-release.apk` (2.3 MB)
 3. Install → buka → **izinkan Overlay** saat diminta
 
 ### Quick Start
@@ -36,6 +36,52 @@ veltra/
 ### Flow utama (v1.0.1+)
 Tap game di VELTRA → bersihkan RAM → **panel overlay nyala** → game kebuka.
 Panel otomatis **sembunyi** saat keluar game (butuh izin Akses Penggunaan).
+
+
+## v1.0.3 — fitur baru
+
+### 🎯 Crosshair presisi
+Gambar bantu bidik di atas game. 7 bentuk (titik, silang, silang+titik, lingkar+titik,
+silang+lingkar, huruf T, presisi), atur ukuran/tebal/celah/warna/jelas/geser X-Y,
+pratinjau langsung. Window-nya `FLAG_NOT_TOUCHABLE` — **sentuhan tembus 100% ke game**.
+Bisa sembunyi otomatis di luar game.
+> Jujur: ini cuma gambar di atas layar. VELTRA tidak membaca memori game, tidak mengubah
+> nilai aim, dan tidak ada auto-aim. Sebagian game/turnamen melarang overlay pihak ketiga.
+
+### 📖 Pembaca teks layar (OCR offline)
+Ambil teks dari layar tanpa mengunggah apa pun — OCR jalan di perangkat (ML Kit).
+Baris bisa diketuk, deteksi otomatis nomor HP / email / link / kode, salin atau bagikan.
+Jalan lewat **izin tangkap layar sistem** (dialog konfirmasi + ikon siaran di status bar),
+karena Android tidak mengizinkan aplikasi membaca layar aplikasi lain secara diam-diam.
+Layar berflag SECURE (bank/pembayaran) tertangkap hitam → VELTRA bilang jujur.
+Model OCR diunduh sekali lewat Layanan Google Play (APK tetap ±2 MB).
+
+### 🧹 Pembersih sampah
+Sisa .apk, berkas sementara, folder kosong, berkas >100 MB. Dengan Shizuku/root: `pm trim-caches`.
+> `Android/data` & `Android/obb` aplikasi lain dikunci sistem sejak Android 11 — tidak ada
+> pembersih pihak ketiga yang bisa menyentuhnya tanpa akses khusus.
+
+### 📦 Semua aplikasi
+Daftar lengkap dengan ikon asli, versi, ukuran, tanggal pasang/perbarui, minSdk/targetSdk,
+sumber instal, dan **salin APK** ke `Download/VELTRA/APK`.
+
+### ⚡ Injeksi Game Mode + kunci layar/FPS
+`cmd game mode performance`, `--downscale`, `--fps`, `device_config put game_overlay`,
+`cmd package compile -m speed -f` — persis jalur Game Dashboard/Game Genie bawaan.
+Kunci refresh rate 60/90/120/144 Hz (`settings put system peak/min_refresh_rate`, butuh
+Shizuku/root) dan target FPS game lewat Game Mode intervention.
+> Jujur: VELTRA **tidak bisa** mengubah sensitivitas dalam game (itu data game = risiko
+> banned). Yang disediakan: **catatan sensitivitas** per game. Panel 60Hz tetap 60Hz —
+> nggak ada aplikasi yang bisa mengubah kemampuan layar.
+
+### 🐛 Perbaikan dari pemakaian nyata
+- Panel tidak lagi hilang sendiri di dalam game (auto-hide butuh 3x konfirmasi + grace 20s).
+- Ghost touch & area mati hilang: `FLAG_NOT_TOUCH_MODAL` + window benar-benar dicabut saat disembunyikan.
+
+### 🎨 Animasi & bentuk baru
+Splash V2 (heksagon orbit, logo menggambar dirinya sendiri, baris boot), komponen dasar
+seragam (`VeltraPrimitives`), sudut terpotong khas VELTRA (`CutCornerShape`), kartu game
+pakai ikon asli game.
 
 ## LIVE GUARD — Live TikTok nggak boleh mati pas main game
 
