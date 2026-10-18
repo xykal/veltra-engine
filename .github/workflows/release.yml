@@ -1,5 +1,10 @@
 name: VELTRA Release (Signed AAB)
 
+# Catatan:
+# - Kalau secrets keystore belum diisi, workflow ini TETAP jalan dan menghasilkan AAB
+#   yang belum di-tanda-tangani (unsigned) — berguna untuk testing.
+# - Untuk rilis ke Play Store, isi 4 secrets di Settings → Secrets → Actions:
+#   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
 on:
   push:
     branches: [main]
@@ -19,16 +24,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v3
 
       - name: Decode Keystore
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
-        env:
-          HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > $GITHUB_WORKSPACE/veltra.jks
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$GITHUB_WORKSPACE/veltra.jks"
 
       - name: Build AAB
         run: ./gradlew bundleRelease
         env:
-          KEYSTORE_PATH: ${{ github.workspace }}/veltra.jks
+          # Kosongkan path kalau keystore tidak tersedia → Gradle pakai konfigurasi unsigned
+          KEYSTORE_PATH: ${{ secrets.KEYSTORE_BASE64 != '' && format('{0}/veltra.jks', github.workspace) || '' }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
