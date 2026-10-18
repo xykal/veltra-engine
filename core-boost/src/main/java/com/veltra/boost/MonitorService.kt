@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
+import android.os.Build
 import android.content.Intent
 import android.os.IBinder
 import android.view.Choreographer
@@ -80,5 +82,18 @@ class MonitorService : Service() {
     companion object {
         const val CHANNEL_ID = "veltra_monitor"
         const val NOTIF_ID = 4317
+
+        /** Sampling FPS/ping/suhu. Dipanggil saat VELTRA masih di depan layar. */
+        fun start(ctx: Context) {
+            runCatching {
+                val i = Intent(ctx, MonitorService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(i)
+                else ctx.startService(i)
+            }
+        }
+
+        fun stop(ctx: Context) = runCatching {
+            ctx.stopService(Intent(ctx, MonitorService::class.java))
+        }
     }
 }

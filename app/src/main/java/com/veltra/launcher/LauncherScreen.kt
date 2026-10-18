@@ -53,6 +53,8 @@ fun LauncherScreen(onSettings: () -> Unit, vm: LauncherViewModel = hiltViewModel
                 letterSpacing = 3.sp
             )
             Spacer(Modifier.height(16.dp))
+            PermissionCard(vm = vm)
+            Spacer(Modifier.height(12.dp))
             LiveGuardCard(vm = vm)
             Spacer(Modifier.height(18.dp))
             Text(

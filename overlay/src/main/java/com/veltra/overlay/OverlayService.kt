@@ -1,5 +1,8 @@
 package com.veltra.overlay
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -13,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -20,18 +24,27 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.veltra.boost.GameDetector
 import com.veltra.boost.MetricsBus
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.*
+import javax.inject.Inject
 
 /**
- * Floating Panel VELTRA — HUD Premium (V2).
+ * Floating Panel VELTRA — HUD Premium (V2)
  *
- * UX:
- *  - Kapsul mini 42dp nempel di pinggir (auto-dim 70% kalau idle)
+ * Perilaku:
+ *  - Kapsul mini 42dp nempel di pinggir
  *  - Tap → expand jadi HUD 300x420 (FPS gauge, ping wave, temp, STABILIZE hexagon)
- *  - Drag bebas, posisi diingat
- *  - TIDAK menutup analog: default di kanan atas, bisa pindah kiri
+ *  - **Auto-hide di luar game**: kalau user keluar game, panel menghilang sendiri
+ *    (butuh izin "Akses Penggunaan"; tanpa izin panel tetap tampil terus)
+ *  - Jalan sebagai **foreground service** supaya tidak jadi korban pertama
+ *    saat sistem membunuh aplikasi background — ini kunci buat HP kentang.
  */
+@AndroidEntryPoint
 class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
+
+    @Inject lateinit var gameDetector: GameDetector
 
     private lateinit var wm: WindowManager
     private var panelView: ComposeView? = null
@@ -40,14 +53,24 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry get() = savedState.savedStateRegistry
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
     private var expanded by mutableStateOf(false)
+    private var visible by mutableStateOf(true)
 
     override fun onCreate() {
         super.onCreate()
         savedState.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        startAsForeground()
         attachPanel()
+        startAutoHideWatcher()
+    }
+
+    private fun startAsForeground() {
+        createChannel()
+        startForeground(NOTIF_ID, buildNotification())
     }
 
     private fun attachPanel() {
@@ -55,22 +78,45 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
             setViewTreeLifecycleOwner(this@OverlayService)
             setViewTreeSavedStateRegistryOwner(this@OverlayService)
             setContent {
-                VeltraHud(
-                    expanded = expanded,
-                    onExpandChange = { expanded = it; relayout() },
-                    fpsFlow = MetricsBus.fps,
-                    pingFlow = MetricsBus.ping,
-                    tempFlow = MetricsBus.temp,
-                    statusFlow = MetricsBus.status,
-                    liveFlow = MetricsBus.live,
-                    onStabilize = { /* panggil BoostEngine */ },
-                    onClose = { stopSelf() }
-                )
+                if (visible) {
+                    VeltraHud(
+                        expanded = expanded,
+                        onExpandChange = { expanded = it; relayout() },
+                        fpsFlow = MetricsBus.fps,
+                        pingFlow = MetricsBus.ping,
+                        tempFlow = MetricsBus.temp,
+                        statusFlow = MetricsBus.status,
+                        liveFlow = MetricsBus.live,
+                        onStabilize = { com.veltra.boost.HintManager.setTargetFps(60) },
+                        onClose = { stopSelf() }
+                    )
+                }
             }
         }
         panelView = view
         wm.addView(view, buildParams(expanded))
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+    }
+
+    /**
+     * Sembunyikan panel kalau user sudah keluar dari game.
+     * Tanpa ini panel akan menutupi WhatsApp/Chrome dan bikin user sebel.
+     */
+    private fun startAutoHideWatcher() {
+        scope.launch {
+            while (isActive) {
+                val inGame = gameDetector.isInGame()
+                val usageGranted = gameDetector.hasUsageAccess()
+                val shouldShow = !usageGranted || inGame
+                if (shouldShow != visible) {
+                    visible = shouldShow
+                    panelView?.let { v ->
+                        runCatching { wm.updateViewLayout(v, buildParams(expanded)) }
+                    }
+                }
+                delay(3_000)
+            }
+        }
     }
 
     private fun relayout() {
@@ -100,12 +146,30 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         }
     }
 
+    private fun buildNotification(): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("VELTRA Panel aktif")
+            .setContentText("Panel performa siap di dalam game")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+    private fun createChannel() {
+        val ch = NotificationChannel(
+            CHANNEL_ID, "VELTRA Panel", NotificationManager.IMPORTANCE_LOW
+        )
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
+    }
+
     override fun onDestroy() {
+        scope.cancel()
         panelView?.let { runCatching { wm.removeView(it) } }
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         super.onDestroy()
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
@@ -113,15 +177,15 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         const val PANEL_H = 420
         const val COLLAPSED_W = 42
         const val COLLAPSED_H = 42
+        const val CHANNEL_ID = "veltra_panel"
+        const val NOTIF_ID = 4318
 
-        fun hasPermission(ctx: Context): Boolean =
-            Settings.canDrawOverlays(ctx)
+        fun hasPermission(ctx: Context): Boolean = Settings.canDrawOverlays(ctx)
 
+        /** Nyalakan panel. Harus dipanggil saat aplikasi masih di depan (Android 12+). */
         fun start(ctx: Context) {
             if (!hasPermission(ctx)) return
-            val i = Intent(ctx, OverlayService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(i)
-            else ctx.startService(i)
+            ctx.startForegroundService(Intent(ctx, OverlayService::class.java))
         }
 
         fun stop(ctx: Context) = ctx.stopService(Intent(ctx, OverlayService::class.java))
