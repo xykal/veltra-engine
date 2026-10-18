@@ -1,17 +1,30 @@
-*.env
+# Gradle / build output
 *.iml
+.gradle/
+.kotlin/
+build/
+*/build/
+*/*/build/
+.cxx/
+.externalNativeBuild/
+captures/
+local.properties
+
+# IDE
+/.idea/
+.DS_Store
+
+# Signing — JANGAN PERNAH di-commit
 *.jks
 *.keystore
-.DS_Store
-.cxx
-.env
-.externalNativeBuild
-.gradle
-/.idea
-/build
-/captures
-/local.properties
-app/build
-env.txt
 keystore.properties
-local.properties
+
+# Secrets — JANGAN PERNAH di-commit
+.env
+.env.*
+!.env.example
+env.txt
+*.env
+
+# Release output
+app/release/
