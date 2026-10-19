@@ -59,47 +59,28 @@ fun CrosshairCard(
     onChange: (CrosshairConfig) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = VeltraColors.Graphite),
-        border = androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
-    ) {
-        Column(Modifier.padding(14.dp)) {
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(26.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(VeltraColors.NeoMint.copy(.12f))
-                        .border(1.dp, VeltraColors.NeoMint.copy(.35f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Rounded.CenterFocusStrong, null, tint = VeltraColors.NeoMint,
-                        modifier = Modifier.size(15.dp))
-                }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("CROSSHAIR PRESISI", color = VeltraColors.Titanium, fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
-                    Text("Bantu bidik • sentuhan tetap tembus ke game",
-                        color = VeltraColors.Muted, fontSize = 9.sp)
-                }
-                androidx.compose.material3.Switch(
-                    checked = config.enabled && hasOverlayPermission,
-                    enabled = hasOverlayPermission,
-                    onCheckedChange = { onChange(config.copy(enabled = it)) },
-                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                        checkedThumbColor = VeltraColors.Obsidian,
-                        checkedTrackColor = VeltraColors.NeoMint,
-                        checkedBorderColor = VeltraColors.NeoMint,
-                        uncheckedThumbColor = VeltraColors.Muted,
-                        uncheckedTrackColor = Color(0xFF1C2331),
-                        uncheckedBorderColor = VeltraColors.Border
-                    )
+    VeltraCard(
+        title = "CROSSHAIR PRESISI",
+        subtitle = "Bantu bidik • sentuhan tetap tembus ke game",
+        icon = Icons.Rounded.CenterFocusStrong,
+        accent = VeltraColors.NeoMint,
+        modifier = modifier,
+        action = {
+            androidx.compose.material3.Switch(
+                checked = config.enabled && hasOverlayPermission,
+                enabled = hasOverlayPermission,
+                onCheckedChange = { onChange(config.copy(enabled = it)) },
+                colors = androidx.compose.material3.SwitchDefaults.colors(
+                    checkedThumbColor = VeltraColors.Obsidian,
+                    checkedTrackColor = VeltraColors.NeoMint,
+                    checkedBorderColor = VeltraColors.NeoMint,
+                    uncheckedThumbColor = VeltraColors.Muted,
+                    uncheckedTrackColor = Color(0xFF1C2331),
+                    uncheckedBorderColor = VeltraColors.Border
                 )
-            }
+            )
+        }
+    ) {
 
             if (!hasOverlayPermission) {
                 Spacer(Modifier.height(8.dp))
@@ -187,7 +168,6 @@ fun CrosshairCard(
                     Spacer(Modifier.height(10.dp))
                     CrosshairHonestNote()
                 }
-            }
         }
     }
 }
@@ -276,6 +256,6 @@ private fun CrosshairHonestNote() {
         ).forEach {
             Text(it, color = VeltraColors.Muted, fontSize = 10.sp, lineHeight = 15.sp,
                 modifier = Modifier.padding(bottom = 5.dp))
-        }
     }
+}
 }

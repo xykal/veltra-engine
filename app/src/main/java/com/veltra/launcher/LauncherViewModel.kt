@@ -55,7 +55,7 @@ class LauncherViewModel @Inject constructor(
         settings.autoStart.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     val panelMode: StateFlow<String> =
-        settings.panelMode.stateIn(viewModelScope, SharingStarted.Eagerly, "HUD")
+        settings.panelMode.stateIn(viewModelScope, SharingStarted.Eagerly, "SIDEBAR")
     val panelSide: StateFlow<String> =
         settings.panelSide.stateIn(viewModelScope, SharingStarted.Eagerly, "RIGHT")
 
@@ -109,7 +109,7 @@ class LauncherViewModel @Inject constructor(
 
     private fun panelMode(): com.veltra.overlay.PanelMode =
         runCatching { com.veltra.overlay.PanelMode.valueOf(panelMode.value) }
-            .getOrDefault(com.veltra.overlay.PanelMode.HUD)
+            .getOrDefault(com.veltra.overlay.PanelMode.SIDEBAR)
 
     private fun panelSide(): com.veltra.overlay.SidebarSide =
         runCatching { com.veltra.overlay.SidebarSide.valueOf(panelSide.value) }
@@ -126,6 +126,9 @@ class LauncherViewModel @Inject constructor(
         settings.lockedHz.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     fun setCrosshair(c: CrosshairConfig) {
+        // teruskan ke window overlay (panel dalam game)
+        com.veltra.overlay.PanelState.crosshair = c
+        com.veltra.overlay.PanelState.crosshairOn = c.enabled
         viewModelScope.launch {
             settings.setCrosshair(c)
             if (!c.enabled) {
@@ -144,6 +147,7 @@ class LauncherViewModel @Inject constructor(
     }
 
     // ---------- KUNCI REFRESH RATE / FPS ----------
+    private val _dndOn = MutableStateFlow(false)
     fun lockHz(hz: Int) {
         viewModelScope.launch {
             _advResult.value = "Menjalankan…"
@@ -178,6 +182,50 @@ class LauncherViewModel @Inject constructor(
         }
     }
 
+    fun unprotectLive() {
+        viewModelScope.launch {
+            val pkg = streamApps.firstOrNull()
+            if (pkg == null) {
+                _advResult.value = "Aplikasi live tidak ditemukan."
+                return@launch
+            }
+            val res = advanced.actions().unprotectLive(pkg)
+            _advResult.value = if (res.ok) "✓ Proteksi dilepas." else "Gagal: ${res.detail}"
+        }
+    }
+
+    fun readTemp() {
+        viewModelScope.launch {
+            val t = advanced.actions().batteryTempC()
+            _advResult.value = t?.let { "Suhu baterai: ${"%.1f".format(it)}°C" }
+                ?: "Suhu tidak terbaca di perangkat ini."
+        }
+    }
+
+    fun trimCaches() {
+        viewModelScope.launch {
+            val res = advanced.actions().trimCaches(1024L * 1024 * 1024)
+            _advResult.value = if (res.ok) "✓ ${res.detail}" else "Gagal: ${res.detail}"
+        }
+    }
+
+    /** Persingkat animasi sistem — efek paling kerasa bikin HP terasa "enteng". */
+    fun fastAnimations() {
+        viewModelScope.launch {
+            val res = advanced.actions().setAnimationScale(0.5f)
+            _advResult.value = if (res.ok) "✓ Skala animasi 0.5x." else "Gagal: ${res.detail}"
+        }
+    }
+
+    fun toggleDnd() {
+        viewModelScope.launch {
+            _dndOn.value = !_dndOn.value
+            val res = advanced.actions().dnd(_dndOn.value)
+            _advResult.value = if (res.ok) "✓ Mode senyap ${if (_dndOn.value) "aktif" else "mati"}."
+            else "Gagal: ${res.detail}"
+        }
+    }
+
     fun unlockFps() {
         viewModelScope.launch {
             val res = advanced.actions().unlockGameFps(_advTarget.value)
@@ -196,13 +244,32 @@ class LauncherViewModel @Inject constructor(
     private val _panelRunning = mutableStateOf(false)
     val panelRunning: State<Boolean> = _panelRunning
 
+    /**
+     * PERFORMA: dua loop pemantau di bawah cuma jalan kalau aplikasi lagi di
+     * depan. Dulu jalan terus walau layar mati → makan CPU & RAM di HP kentang.
+     */
+    private val foreground = MutableStateFlow(false)
+    fun setForeground(v: Boolean) { foreground.value = v }
+
+    init {
+        // baca status depan/belakang dari bus (murah: cuma baca volatile)
+        viewModelScope.launch {
+            while (true) {
+                foreground.value = ForegroundBus.foreground
+                delay(700)
+            }
+        }
+    }
+
     init {
         // Status izin bisa berubah setelah user balik dari Settings
         viewModelScope.launch {
             while (true) {
-                _overlayGranted.value = OverlayService.hasPermission(ctx)
-                _usageGranted.value = gameDetector.hasUsageAccess()
-                delay(2_000)
+                if (foreground.value) {
+                    _overlayGranted.value = OverlayService.hasPermission(ctx)
+                    _usageGranted.value = gameDetector.hasUsageAccess()
+                }
+                delay(if (foreground.value) 2_000 else 10_000)
             }
         }
     }
@@ -219,6 +286,9 @@ class LauncherViewModel @Inject constructor(
         if (!OverlayService.hasPermission(ctx)) return
         _panelRunning.value = true
         MonitorService.start(ctx)
+        // sinkronkan keadaan panel (crosshair/FPS/senyap) sebelum window dibuat
+        com.veltra.overlay.PanelState.crosshair = crosshair.value
+        com.veltra.overlay.PanelState.crosshairOn = crosshair.value.enabled
         OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
         // crosshair nyala bareng panel kalau memang diaktifkan
         if (crosshair.value.enabled) CrosshairService.start(ctx, crosshair.value)
@@ -234,6 +304,20 @@ class LauncherViewModel @Inject constructor(
     // ---------- LIVE GUARD ----------
     val streamApps: List<String> = StreamApps.installedStreamApps(ctx)
     val liveAlive: StateFlow<Boolean?> = MetricsBus.live
+
+    /** Aplikasi live yang terdeteksi otomatis (null = nggak ada siaran berjalan). */
+    val detectedLive: StateFlow<String?> =
+        com.veltra.launcher.live.LiveDetectService.LiveState.livePackage
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun openNotificationAccess() {
+        runCatching {
+            ctx.startActivity(
+                com.veltra.launcher.live.LiveDetectService.settingsIntent()
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
     val fpsHistory: StateFlow<List<Int>> = MetricsBus.fpsHistory
 
     private val _memory = MutableStateFlow<LiveGuard.Memory?>(null)
@@ -247,9 +331,11 @@ class LauncherViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             while (true) {
-                _memory.value = liveGuard.memory()
-                _checks.value = liveGuard.preflight()
-                delay(5_000)
+                if (foreground.value) {
+                    _memory.value = liveGuard.memory()
+                    _checks.value = liveGuard.preflight()
+                }
+                delay(if (foreground.value) 5_000 else 15_000)
             }
         }
     }
@@ -278,10 +364,38 @@ class LauncherViewModel @Inject constructor(
      * Panel dinyalakan SELAGI VELTRA masih di depan, karena Android 12+ melarang
      * memulai foreground service dari background.
      */
+    /**
+     * Buka game lewat layar animasi VELTRA (GameLaunchActivity).
+     * Di situlah RAM dibersihkan, panel & crosshair dinyalakan, baru game dibuka —
+     * jadi pengguna lihat urutannya, bukan cuma nunggu layar hitam.
+     */
     fun launch(packageName: String) {
+        // 1. bersihkan RAM & nyalakan panel dulu (harus saat VELTRA masih di depan)
+        launchDirectPreparation(packageName)
+        // 2. baru tampilkan animasi, dan game dibuka di akhir animasi
+        val i = Intent(ctx, GameLaunchActivity::class.java)
+            .putExtra(GameLaunchActivity.EXTRA_PKG, packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { ctx.startActivity(i) }
+            .onFailure { launchDirect(packageName) }
+    }
+
+    private fun launchDirectPreparation(packageName: String) {
         boost.prepareFor(packageName)
         if (OverlayService.hasPermission(ctx) && autoStart.value) {
             MonitorService.start(ctx)
+            com.veltra.overlay.PanelState.crosshair = crosshair.value
+            OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
+            _panelRunning.value = true
+        }
+    }
+
+    /** Buka game langsung tanpa animasi (dipakai dari layar animasi & cadangan). */
+    fun launchDirect(packageName: String) {
+        boost.prepareFor(packageName)
+        if (OverlayService.hasPermission(ctx) && autoStart.value) {
+            MonitorService.start(ctx)
+            com.veltra.overlay.PanelState.crosshair = crosshair.value
             OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
             _panelRunning.value = true
         }

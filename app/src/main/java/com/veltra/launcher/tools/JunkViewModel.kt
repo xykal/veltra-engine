@@ -20,6 +20,7 @@ data class JunkUiState(
     val selected: Set<String> = emptySet(),
     val totalBytes: Long = 0L,
     val freedBytes: Long = 0L,
+    val scanned: Int = 0,
     val note: String = ""
 )
 
@@ -37,16 +38,24 @@ class JunkViewModel @Inject constructor(
 
     fun scan() = viewModelScope.launch {
         _state.value = JunkUiState(scanning = true, freedBytes = _state.value.freedBytes)
-        val report = runCatching { scanner.scan() }.getOrNull()
+        var seen = 0
+        val report = runCatching { scanner.scan { n -> seen = n } }.getOrNull()
         _state.value = _state.value.copy(
             scanning = false,
             items = report?.items.orEmpty(),
             totalBytes = report?.totalBytes ?: 0L,
             selected = emptySet(),
-            note = if (report?.items.isNullOrEmpty())
-                "Tidak ada sampah yang bisa dibersihkan tanpa akses tambahan. " +
-                "Android 11+ memblokir folder Android/data aplikasi lain."
-            else "Pilih yang mau dibuang, satu-satu atau semua."
+            scanned = report?.scanned ?: seen,
+            note = when {
+                report?.items.isNullOrEmpty() ->
+                    "Tidak ada sampah yang bisa dibersihkan tanpa akses tambahan. " +
+                    "Android 11+ memblokir folder Android/data aplikasi lain."
+                report?.truncated == true ->
+                    "${report.items.size} item ketemu dari ${report.scanned} berkas yang dipindai " +
+                    "(pemindaian dibatasi biar HP nggak nge-freeze). Pilih yang mau dibuang."
+                else -> "${report?.items?.size ?: 0} item ketemu dari ${report?.scanned ?: 0} berkas. " +
+                    "Pilih yang mau dibuang."
+            }
         )
     }
 

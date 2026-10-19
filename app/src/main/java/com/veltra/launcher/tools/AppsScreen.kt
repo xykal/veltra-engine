@@ -53,7 +53,8 @@ import java.util.Locale
 @Composable
 fun AppsScreen(onBack: () -> Unit, vm: AppsViewModel = hiltViewModel()) {
     val st by vm.state.collectAsState()
-    val visible = remember(st.all, st.filter, st.query) { vm.visible() }
+    val visible = remember(st.all, st.sizes, st.filter, st.query) { vm.visible() }
+    val sizes = st.sizes
     var expanded by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize().background(VeltraColors.Obsidian)) {
@@ -142,19 +143,20 @@ fun AppsScreen(onBack: () -> Unit, vm: AppsViewModel = hiltViewModel()) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(visible, key = { it.packageName }) { app ->
+                        val sz = sizes[app.packageName]
                         val open = expanded == app.packageName
+                        val appWithSize = app.copy(
+                            appSize = sz?.first ?: app.apkSize,
+                            cacheSize = sz?.second ?: 0L
+                        )
                         AppRow(
-                            app = app,
-                            icon = remember(app.packageName) {
-                                runCatching {
-                                    vm.icon(app.packageName)?.toBitmap(96, 96)?.asImageBitmap()
-                                }.getOrNull()
-                            },
+                            app = appWithSize,
+                            icon = loadIcon(vm, app.packageName),
                             expanded = open,
                             onOpen = { expanded = if (open) null else app.packageName },
                             onLaunch = { vm.launch(app.packageName) },
                             onDetails = { vm.openDetails(app.packageName) },
-                            onExtract = { vm.extract(app) }
+                            onExtract = { vm.extract(appWithSize) }
                         )
                     }
                     item { Spacer(Modifier.height(14.dp)) }
@@ -162,6 +164,20 @@ fun AppsScreen(onBack: () -> Unit, vm: AppsViewModel = hiltViewModel()) {
             }
         }
     }
+}
+
+/**
+ * Ikon aplikasi dimuat **asinkron** di background lalu diingat.
+ * Dulu decode ikon jalan di thread utama → scroll daftar aplikasi ngelag.
+ */
+@Composable
+private fun loadIcon(vm: AppsViewModel, pkg: String): androidx.compose.ui.graphics.ImageBitmap? {
+    var bmp by remember(pkg) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    LaunchedEffect(pkg) {
+        val d = vm.icon(pkg) ?: return@LaunchedEffect
+        bmp = d.toBitmap(96, 96).asImageBitmap()
+    }
+    return bmp
 }
 
 @Composable

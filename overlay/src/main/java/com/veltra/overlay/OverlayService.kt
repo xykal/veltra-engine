@@ -29,6 +29,7 @@ import com.veltra.boost.GameDetector
 import com.veltra.boost.MetricsBus
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 
 /**
@@ -60,6 +61,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     private var expanded by mutableStateOf(false)
     private var visible by mutableStateOf(true)
+    private val ramFree = MutableStateFlow(-1)
 
     private var mode = PanelMode.HUD
     private var side = SidebarSide.RIGHT
@@ -74,6 +76,7 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         startAsForeground()
         attachPanel()
         startAutoHideWatcher()
+        startRamWatcher()
     }
 
     private fun startAsForeground() {
@@ -97,10 +100,21 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
                         tempFlow = MetricsBus.temp,
                         statusFlow = MetricsBus.status,
                         liveFlow = MetricsBus.live,
+                        ramFlow = ramFree,
+                        crosshairOn = PanelState.crosshairOn,
+                        quietOn = PanelState.quietOn,
+                        targetFps = PanelState.targetFps,
                         onStabilize = {
                             boostEngine.runSafeBoost()
-                            com.veltra.boost.HintManager.setTargetFps(60)
+                            com.veltra.boost.HintManager.setTargetFps(PanelState.targetFps)
                         },
+                        onCrosshair = { toggleCrosshair() },
+                        onQuiet = { toggleQuiet() },
+                        onFps = { fps ->
+                            PanelState.targetFps = fps
+                            com.veltra.boost.HintManager.setTargetFps(fps)
+                        },
+                        onOpenApp = { openVeltra() },
                         onClose = { stopSelf() },
                         side = side
                     )
@@ -163,6 +177,19 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         }
     }
 
+    /** RAM bebas diperbarui tiap 5 detik — cukup murah, dan cuma jalan saat panel hidup. */
+    private fun startRamWatcher() {
+        scope.launch {
+            val am = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
+            while (isActive) {
+                val mi = android.app.ActivityManager.MemoryInfo()
+                runCatching { am.getMemoryInfo(mi) }
+                ramFree.value = (mi.availMem / (1024 * 1024)).toInt()
+                delay(5_000)
+            }
+        }
+    }
+
     private fun relayout() {
         panelView?.let { v -> runCatching { wm.updateViewLayout(v, buildParams()) } }
     }
@@ -215,6 +242,54 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         }
     }
 
+    /** Toggle crosshair langsung dari panel dalam game. */
+    private fun toggleCrosshair() {
+        if (!com.veltra.overlay.crosshair.CrosshairService.hasPermission(this)) {
+            PanelState.crosshairOn = false
+            return
+        }
+        if (PanelState.crosshairOn) {
+            com.veltra.overlay.crosshair.CrosshairService.stop(this)
+            PanelState.crosshairOn = false
+        } else {
+            val cfg = PanelState.crosshair.copy(enabled = true)
+            com.veltra.overlay.crosshair.CrosshairService.start(this, cfg)
+            PanelState.crosshairOn = true
+        }
+    }
+
+    /**
+     * Mode senyap. Kalau izin "Jangan Ganggu" sudah diberikan, pakai
+     * interruption filter (DND beneran). Kalau belum, pakai ringer mode
+     * (senyap sederhana) — jujur, ini bukan DND penuh.
+     */
+    private fun toggleQuiet() {
+        val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val hasPolicy = if (Build.VERSION.SDK_INT >= 23) nm.isNotificationPolicyAccessGranted else false
+        PanelState.quietOn = !PanelState.quietOn
+        runCatching {
+            if (hasPolicy) {
+                nm.setInterruptionFilter(
+                    if (PanelState.quietOn) NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                    else NotificationManager.INTERRUPTION_FILTER_ALL
+                )
+            } else {
+                val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+                am.ringerMode = if (PanelState.quietOn) android.media.AudioManager.RINGER_MODE_SILENT
+                else android.media.AudioManager.RINGER_MODE_NORMAL
+            }
+        }
+    }
+
+    /** Buka aplikasi VELTRA dari dalam game. */
+    private fun openVeltra() {
+        runCatching {
+            val i = packageManager.getLaunchIntentForPackage("com.veltra.engine")
+                ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            if (i != null) startActivity(i)
+        }
+    }
+
     private fun buildNotification(): Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("VELTRA Panel aktif")
@@ -261,10 +336,10 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         const val COLLAPSED_W = 46
         const val COLLAPSED_H = 46
         // Sidebar
-        const val SIDEBAR_W = 232
-        const val SIDEBAR_H = 460
-        const val HANDLE_W = 20
-        const val HANDLE_H = 118
+        const val SIDEBAR_W = 268
+        const val SIDEBAR_H = 476
+        const val HANDLE_W = 40
+        const val HANDLE_H = 128
 
         const val CHANNEL_ID = "veltra_panel"
         const val NOTIF_ID = 4318

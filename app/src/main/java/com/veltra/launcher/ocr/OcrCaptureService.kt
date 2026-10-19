@@ -47,6 +47,7 @@ class OcrCaptureService : Service() {
         const val ACTION_START = "com.veltra.ocr.START"
         const val ACTION_CAPTURE = "com.veltra.ocr.CAPTURE"
         const val ACTION_STOP = "com.veltra.ocr.STOP"
+        const val ACTION_SHOT = "com.veltra.ocr.SHOT"
         const val EXTRA_RESULT_CODE = "rc"
         const val EXTRA_DATA = "data"
 
@@ -73,11 +74,15 @@ class OcrCaptureService : Service() {
             }
     }
 
+    /** true kalau sesi ini diminta buat menyimpan tangkapan ke Galeri. */
+    private var saveShot = false
+
     private var projection: MediaProjection? = null
     private var reader: ImageReader? = null
     private var virtualDisplay: VirtualDisplay? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        saveShot = intent?.action == ACTION_SHOT
         when (intent?.action) {
             ACTION_STOP -> { stopSelf(); return START_NOT_STICKY }
             ACTION_CAPTURE -> {
@@ -160,9 +165,12 @@ class OcrCaptureService : Service() {
                 image.close()
                 if (bmp != null) {
                     _lastBitmap.value = bmp
-                    _status.value = "Layar tertangkap."
+                    _status.value = if (saveShot)
+                        saveToGallery(bmp) ?: "Gagal menyimpan tangkapan."
+                    else "Layar tertangkap."
                 }
                 releaseDisplay()            // cukup satu frame
+                if (saveShot) stopSelf()
             }, Handler(Looper.getMainLooper()))
         }.onFailure {
             _status.value = "Gagal menangkap layar: ${it.message ?: "ditolak sistem"}"
@@ -175,6 +183,35 @@ class OcrCaptureService : Service() {
         virtualDisplay = null
         reader = null
     }
+
+    /** Simpan tangkapan ke Galeri (Pictures/VELTRA). */
+    private fun saveToGallery(bmp: Bitmap): String? = runCatching {
+        val name = "VELTRA_${java.text.SimpleDateFormat(
+            "yyyyMMdd_HHmmss", java.util.Locale.US
+        ).format(java.util.Date())}.png"
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+            if (Build.VERSION.SDK_INT >= 29) {
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH,
+                    android.os.Environment.DIRECTORY_PICTURES + "/VELTRA")
+                put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+        val resolver = contentResolver
+        val uri = resolver.insert(
+            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
+        ) ?: return "Gagal membuat berkas di Galeri."
+        resolver.openOutputStream(uri)?.use { out ->
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        if (Build.VERSION.SDK_INT >= 29) {
+            values.clear()
+            values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        }
+        "Tangkapan disimpan di Galeri → Pictures/VELTRA/$name"
+    }.getOrNull()
 
     private fun decode(image: Image): Bitmap? = runCatching {
         val plane = image.planes[0]

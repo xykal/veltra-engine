@@ -55,7 +55,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setAutoHide(v: Boolean) { ctx.veltraSettings.edit { it[Keys.AUTO_HIDE] = v } }
     suspend fun setAutoStart(v: Boolean) { ctx.veltraSettings.edit { it[Keys.AUTO_START] = v } }
 
-    val panelMode: Flow<String> = ctx.veltraSettings.data.map { it[Keys.PANEL_MODE] ?: "HUD" }
+    val panelMode: Flow<String> = ctx.veltraSettings.data.map { it[Keys.PANEL_MODE] ?: "SIDEBAR" }
     val panelSide: Flow<String> = ctx.veltraSettings.data.map { it[Keys.PANEL_SIDE] ?: "RIGHT" }
 
     suspend fun setPanelMode(v: String) { ctx.veltraSettings.edit { it[Keys.PANEL_MODE] = v } }

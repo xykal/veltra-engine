@@ -5,24 +5,32 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsStateimport androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CenterFocusStrong
+import androidx.compose.material.icons.rounded.DoNotDisturbOn
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.StateFlow
@@ -39,25 +47,18 @@ private val Muted = Color(0xFF9AA3B3)
 private val Dim = Color(0xFF6B7588)
 private val Mono = FontFamily.Monospace
 
-private val HexagonShape = androidx.compose.foundation.shape.GenericShape { size, _ ->
-    val w = size.width; val h = size.height
-    moveTo(w * 0.10f, h * 0.50f)
-    lineTo(w * 0.26f, h * 0.06f)
-    lineTo(w * 0.74f, h * 0.06f)
-    lineTo(w * 0.90f, h * 0.50f)
-    lineTo(w * 0.74f, h * 0.94f)
-    lineTo(w * 0.26f, h * 0.94f)
-    close()
-}
-
 /**
- * PANEL GAYA ROG — sidebar di kiri/kanan layar.
+ * PANEL GAYA ROG / GAME GENIE — sidebar nempel di tepi layar.
  *
- * Pola pakai (mirip Game Genie / Edge panel):
- *  - Nempel di tepi layar sebagai **handle tipis** (20dp × 118dp)
- *  - Ketuk handle → panel geser keluar (232dp) berisi HUD vertikal
- *  - Geser handle naik-turun buat pindah posisi
- *  - Bisa dipasang di kiri ATAU kanan (setelan)
+ * Perbaikan dari keluhan pemakaian nyata:
+ *  - Tombolnya **kotak 1:1 (72dp)** dengan ikon + teks, bukan baris gepeng yang
+ *    ketutup isi panel. Nggak ada lagi tombol yang "gepeng nggak ketampil".
+ *  - Isinya lengkap: STABILKAN • CROSSHAIR • SENYAP • FPS • BUKA VELTRA • TUTUP,
+ *    plus metrik FPS/PING/SUHU/RAM dan status LIVE.
+ *  - Handle tetap bisa diseret naik-turun.
+ *
+ * Satu-satunya animasi yang berjalan terus ada di **satu** elemen (cincin FPS).
+ * Sisanya statis — sengaja, biar nggak makan CPU saat game jalan.
  */
 @Composable
 fun VeltraSidebar(
@@ -69,7 +70,15 @@ fun VeltraSidebar(
     tempFlow: StateFlow<Int>,
     statusFlow: StateFlow<String>,
     liveFlow: StateFlow<Boolean?>,
+    ramFlow: StateFlow<Int>? = null,
+    crosshairOn: Boolean = false,
+    quietOn: Boolean = false,
+    targetFps: Int = 60,
     onStabilize: () -> Unit,
+    onCrosshair: () -> Unit,
+    onQuiet: () -> Unit,
+    onFps: (Int) -> Unit,
+    onOpenApp: () -> Unit,
     onClose: () -> Unit,
     side: SidebarSide
 ) {
@@ -78,31 +87,28 @@ fun VeltraSidebar(
     val temp by tempFlow.collectAsState()
     val status by statusFlow.collectAsState()
     val live by liveFlow.collectAsState()
+    val ramFree by (ramFlow ?: kotlinx.coroutines.flow.MutableStateFlow(-1)).collectAsState()
 
-    val inf = rememberInfiniteTransition(label = "sb")
-    val pulse by inf.animateFloat(0.75f, 1.25f,
-        infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "p")
-
-    val panelShape = RoundedCornerShape(18.dp)
     val isRight = side == SidebarSide.RIGHT
+    val panelShape = RoundedCornerShape(18.dp)
 
     Box(contentAlignment = if (isRight) Alignment.CenterEnd else Alignment.CenterStart) {
 
-        // ---- Panel isi (geser keluar) ----
+        // ── Panel isi ─────────────────────────────────────────────────
         AnimatedVisibility(
             visible = expanded,
             enter = slideInHorizontally(
                 initialOffsetX = { if (isRight) it else -it },
-                animationSpec = tween(220, easing = FastOutSlowInEasing)
-            ) + fadeIn(),
+                animationSpec = tween(200, easing = FastOutSlowInEasing)
+            ) + fadeIn(tween(160)),
             exit = slideOutHorizontally(
                 targetOffsetX = { if (isRight) it else -it },
-                animationSpec = tween(180)
-            ) + fadeOut()
+                animationSpec = tween(160)
+            ) + fadeOut(tween(140))
         ) {
             Column(
                 Modifier
-                    .size(232.dp, 460.dp)
+                    .size(268.dp, 476.dp)
                     .clip(panelShape)
                     .background(
                         Brush.horizontalGradient(
@@ -110,208 +116,237 @@ fun VeltraSidebar(
                             else listOf(Obsidian.copy(0.98f), Graphite.copy(0.97f))
                         )
                     )
-                    .border(1.dp, Cobalt.copy(0.55f * pulse), panelShape)
-                    .padding(14.dp)
+                    .border(1.dp, Cobalt.copy(0.5f), panelShape)
+                    .padding(13.dp)
             ) {
-                // Header
+                // Kepala
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("VELTRA", color = Titanium, fontSize = 11.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                    Spacer(Modifier.weight(1f))
+                    Spacer(Modifier.width(7.dp))
                     Box(Modifier.size(6.dp).clip(CircleShape)
                         .background(if (status == "STABLE") NeoMint else Amber))
+                    Spacer(Modifier.weight(1f))
+                    Text(status, color = Dim, fontSize = 8.sp, letterSpacing = 1.sp)
                     Spacer(Modifier.width(8.dp))
-                    Text("›", color = Dim, fontSize = 14.sp,
+                    Text("›", color = Dim, fontSize = 15.sp,
                         modifier = Modifier.clickable { onExpandChange(false) })
-                    Spacer(Modifier.width(8.dp))
-                    Text("✕", color = Dim, fontSize = 11.sp,
-                        modifier = Modifier.clickable { onClose() })
-                }
-
-                Spacer(Modifier.height(12.dp))
-                live?.let { LiveChipSb(alive = it); Spacer(Modifier.height(12.dp)) }
-
-                // FPS mini gauge
-                Box(Modifier.fillMaxWidth().height(104.dp),
-                    contentAlignment = Alignment.Center) { FpsGaugeSb(fps, fps >= 50, pulse) }
-
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MetricSb("PING", "${if (ping < 0) "--" else ping}ms",
-                        if (ping in 1..60) NeoMint else Amber, Modifier.weight(1f))
-                    MetricSb("TEMP", "${temp}°C",
-                        if (temp <= 42) NeoMint else Amber, Modifier.weight(1f))
+                    Spacer(Modifier.width(9.dp))
+                    Icon(Icons.Rounded.Close, null, tint = Dim,
+                        modifier = Modifier.size(13.dp).clickable { onClose() })
                 }
 
                 Spacer(Modifier.height(10.dp))
-                Text("TOGGLES", color = Dim, fontSize = 8.sp, letterSpacing = 2.sp)
-                Spacer(Modifier.height(8.dp))
-                QuickTogglesSb()
+                live?.let { LiveChip(alive = it) }
 
-                Spacer(Modifier.weight(1f))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .clip(HexagonShape)
-                        .background(Brush.horizontalGradient(listOf(Cobalt, IonCyan.copy(0.9f))))
-                        .clickable { onStabilize() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("⚡", fontSize = 13.sp)
-                        Spacer(Modifier.width(7.dp))
-                        Text("STABILIZE", color = Color.White, fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.5.sp, fontSize = 12.5.sp)
+                Spacer(Modifier.height(10.dp))
+
+                // Hero: gauge FPS + 2 metrik
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+                        FpsGauge(fps, fps >= 50)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        StatBox("PING", "${if (ping < 0) "--" else ping}ms",
+                            if (ping in 1..80) NeoMint else if (ping <= 0) Muted else Amber)
+                        Spacer(Modifier.height(7.dp))
+                        StatBox("SUHU", "${if (temp <= 0) "--" else temp}°C",
+                            when { temp <= 0 -> Muted; temp >= 45 -> LiveRed; temp >= 41 -> Amber; else -> NeoMint })
                     }
                 }
+
+                Spacer(Modifier.height(12.dp))
+
+                // ── Tombol aksi: kotak 1:1, 3 kolom ────────────────────
+                Row(Modifier.fillMaxWidth()) {
+                    ActionTile("STABILKAN", Icons.Rounded.Bolt, NeoMint, Modifier.weight(1f)) { onStabilize() }
+                    Spacer(Modifier.width(8.dp))
+                    ActionTile("CROSSHAIR", Icons.Rounded.CenterFocusStrong,
+                        if (crosshairOn) NeoMint else Titanium, Modifier.weight(1f)) { onCrosshair() }
+                    Spacer(Modifier.width(8.dp))
+                    ActionTile("SENYAP", Icons.Rounded.DoNotDisturbOn,
+                        if (quietOn) Amber else Titanium, Modifier.weight(1f)) { onQuiet() }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth()) {
+                    ActionTile("FPS $targetFps", Icons.Rounded.Speed, IonCyan, Modifier.weight(1f)) {
+                        onFps(if (targetFps >= 60) 30 else 60)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    ActionTile("BUKA", Icons.Rounded.OpenInNew, Titanium, Modifier.weight(1f)) { onOpenApp() }
+                    Spacer(Modifier.width(8.dp))
+                    ActionTile("TUTUP", Icons.Rounded.Close, LiveRed, Modifier.weight(1f)) { onClose() }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // RAM
+                RamStrip(ramFree)
+
+                Spacer(Modifier.weight(1f))
+                Text("VELTRA • ${if (isRight) "kanan" else "kiri"} • geser handle buat pindah",
+                    color = Dim, fontSize = 8.sp)
             }
         }
 
-        // ---- Handle (selalu kelihatan) ----
-        Column(
-            Modifier
-                .size(20.dp, 118.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Cobalt.copy(0.92f), IonCyan.copy(0.75f))
+        // ── Handle (nempel di tepi) ───────────────────────────────────
+        if (!expanded) {
+            Column(
+                Modifier
+                    .size(40.dp, 128.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Graphite.copy(.95f), Obsidian.copy(.95f))
+                        )
                     )
-                )
-                .drawBehindGlow(IonCyan, pulse)
-                .pointerInput(Unit) {
-                    detectDragGestures { _, dragAmount -> onDrag(dragAmount.y) }
-                }
-                .clickable { onExpandChange(!expanded) },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text("V", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(5.dp))
-            Box(Modifier.width(2.dp).height(26.dp).background(Color.White.copy(0.55f)))
-            Spacer(Modifier.height(5.dp))
-            Text(if (expanded) "›" else "‹", color = Color.White, fontSize = 10.sp)
+                    .border(1.dp, Cobalt.copy(.45f), RoundedCornerShape(14.dp))
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, drag ->
+                            change.consume()
+                            onDrag(drag.y)
+                        }
+                    }
+                    .clickable { onExpandChange(true) }
+                    .padding(vertical = 9.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("$fps", color = if (fps >= 50) NeoMint else Amber,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = Mono)
+                Text("FPS", color = Muted, fontSize = 7.sp, letterSpacing = 1.sp)
+                Spacer(Modifier.height(6.dp))
+                Box(Modifier.width(2.dp).height(20.dp).background(Color.White.copy(0.35f)))
+                Spacer(Modifier.height(6.dp))
+                Text(if (isRight) "‹" else "›", color = Color.White, fontSize = 11.sp)
+            }
         }
     }
 }
 
-/** Glow tipis di sekeliling handle biar kelihatan "nyala" tanpa norak. */
-private fun Modifier.drawBehindGlow(color: Color, pulse: Float) = this
-    .drawWithCache {
-        onDrawWithContent {
-            drawContent()
-            drawRoundRect(
-                color = color.copy(alpha = 0.35f * pulse),
-                cornerRadius = CornerRadius(10.dp.toPx()),
-                style = Stroke(width = 1.4f * pulse)
-            )
-        }
-    }
+/* ─────────────── KOMPONEN PANEL ─────────────── */
 
 @Composable
-private fun FpsGaugeSb(fps: Int, good: Boolean, pulse: Float) {
-    val color = if (good) IonCyan else Amber
-    val sweep by animateFloatAsState(
-        targetValue = (fps.coerceIn(0, 120) / 120f) * 270f,
-        animationSpec = tween(400), label = "sweep"
-    )
+private fun FpsGauge(fps: Int, good: Boolean) {
+    val color = if (fps >= 50) NeoMint else if (fps >= 30) Amber else LiveRed
+    val target = (fps.coerceIn(0, 120) / 120f) * 270f
+    val sweep by animateFloatAsState(target, tween(350), label = "fps")
+
     Box(contentAlignment = Alignment.Center) {
-        androidx.compose.foundation.Canvas(Modifier.size(104.dp)) {
-            drawArc(Color.White.copy(0.07f), 135f, 270f, false,
-                style = Stroke(width = 10f, cap = StrokeCap.Round))
+        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            val w = 8.dp.toPx()
+            drawArc(Color.White.copy(.07f), 135f, 270f, false, style = Stroke(w, cap = StrokeCap.Round))
             drawArc(
-                brush = Brush.sweepGradient(listOf(color.copy(0.3f), color)),
-                startAngle = 135f, sweepAngle = sweep, useCenter = false,
-                style = Stroke(width = 10f, cap = StrokeCap.Round)
-            )
-            drawCircle(
-                brush = Brush.radialGradient(
-                    listOf(color.copy(0.16f * pulse), Color.Transparent)
-                ),
-                radius = 48f * pulse,
-                center = Offset(size.width / 2, size.height / 2)
+                Brush.sweepGradient(listOf(color.copy(.35f), color)),
+                135f, sweep, false,
+                style = Stroke(w, cap = StrokeCap.Round)
             )
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$fps", color = Titanium, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+            Text("$fps", color = color, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                 fontFamily = Mono)
-            Text("FPS", color = Dim, fontSize = 8.sp, letterSpacing = 3.sp)
+            Text("FPS", color = Muted, fontSize = 8.sp, letterSpacing = 1.6.sp)
         }
     }
 }
 
 @Composable
-private fun MetricSb(label: String, value: String, tint: Color, modifier: Modifier) {
+private fun StatBox(label: String, value: String, color: Color) {
     Column(
-        modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(0.045f))
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(11.dp))
+            .background(Color(0xFF101720))
+            .border(1.dp, Color(0xFF232A38), RoundedCornerShape(11.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp)
     ) {
-        Text(label, color = Dim, fontSize = 8.sp, letterSpacing = 2.sp)
-        Spacer(Modifier.height(3.dp))
-        Text(value, color = tint, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+        Text(label, color = Muted, fontSize = 8.sp, letterSpacing = 1.4.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(value, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold,
             fontFamily = Mono)
     }
 }
 
+/** Tombol aksi kotak — ikon di atas, teks di bawah. Nggak ada yang gepeng. */
 @Composable
-private fun QuickTogglesSb() {
-    val items = listOf("PERF", "FOCUS", "NET", "TOUCH", "REC", "BRIGHT", "DND", "COOL")
-    var states by remember { mutableStateOf(listOf(true, true, true, false, false, false, true, true)) }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (row in 0..1) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (col in 0..3) {
-                    val i = row * 4 + col
-                    val on = states[i]
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(28.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (on) NeoMint.copy(0.13f) else Color.White.copy(0.04f))
-                            .border(1.dp, if (on) NeoMint.copy(0.55f) else Color.White.copy(0.06f),
-                                RoundedCornerShape(8.dp))
-                            .clickable { states = states.toMutableList().also { it[i] = !on } },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(items[i], color = if (on) NeoMint else Dim, fontSize = 7.sp,
-                            fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
+private fun ActionTile(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.93f else 1f, tween(90), label = "tile")
+
+    Column(
+        modifier
+            .scale(scale)
+            .aspectRatio(1f)
+            .defaultMinSize(minHeight = 66.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (isPressed) Color(0xFF16202C) else Color(0xFF101720))
+            .border(1.dp, Color(0xFF232A38), RoundedCornerShape(13.dp))
+            .clickable(src, null) { onClick() }
+            .padding(vertical = 9.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(5.dp))
+        Text(label, color = tint, fontSize = 8.sp, fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.4.sp, maxLines = 1)
     }
 }
 
 @Composable
-private fun LiveChipSb(alive: Boolean) {
-    val blink = rememberInfiniteTransition(label = "sb-live")
-    val a by blink.animateFloat(0.4f, 1f,
-        infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "b")
+private fun LiveChip(alive: Boolean) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(9.dp))
-            .background(LiveRed.copy(if (alive) 0.16f else 0.10f * a))
-            .border(1.dp, LiveRed.copy(0.45f * a), RoundedCornerShape(9.dp))
-            .padding(vertical = 7.dp, horizontal = 10.dp),
+            .clip(RoundedCornerShape(11.dp))
+            .background(if (alive) NeoMint.copy(.12f) else LiveRed.copy(.14f))
+            .border(1.dp, if (alive) NeoMint.copy(.5f) else LiveRed.copy(.6f),
+                RoundedCornerShape(11.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(7.dp).clip(CircleShape)
-            .background(if (alive) LiveRed else Dim.copy(a)))
+        Box(Modifier.size(6.dp).clip(CircleShape)
+            .background(if (alive) NeoMint else LiveRed))
         Spacer(Modifier.width(8.dp))
-        Text(
-            if (alive) "LIVE — TERJAGA" else "LIVE PUTUS",
-            color = if (alive) Color(0xFFFF6B85) else Dim,
-            fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp
-        )
+        Text(if (alive) "LIVE TERJAGA" else "LIVE PUTUS",
+            color = if (alive) NeoMint else LiveRed,
+            fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
     }
 }
 
-/** Sisi tempat sidebar nempel. */
-enum class SidebarSide { LEFT, RIGHT }
-
-/** Gaya panel: HUD mengambang (bisa dipindah) atau sidebar tepi layar (gaya ROG). */
-enum class PanelMode { HUD, SIDEBAR }
+@Composable
+private fun RamStrip(freeMb: Int) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("RAM", color = Muted, fontSize = 8.sp, letterSpacing = 1.4.sp)
+            Spacer(Modifier.weight(1f))
+            Text(if (freeMb < 0) "--" else "bebas ${freeMb}MB",
+                color = if (freeMb in 1..700) Amber else Titanium,
+                fontSize = 9.sp, fontFamily = Mono)
+        }
+        Spacer(Modifier.height(5.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color.White.copy(.07f))
+        ) {
+            val ratio = if (freeMb <= 0) 0.5f else (freeMb / 4096f).coerceIn(0.05f, 1f)
+            Box(
+                Modifier
+                    .fillMaxWidth(ratio)
+                    .height(5.dp)
+                    .background(Brush.horizontalGradient(listOf(Cobalt, IonCyan)))
+            )
+        }
+    }
+}

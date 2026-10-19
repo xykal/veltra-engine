@@ -54,6 +54,8 @@ fun LauncherScreen(
     onOcr: () -> Unit = {},
     onJunk: () -> Unit = {},
     onApps: () -> Unit = {},
+    onShizuku: () -> Unit = {},
+    onDevice: () -> Unit = {},
     vm: LauncherViewModel = hiltViewModel()
 ) {
     val games by vm.games.collectAsState()
@@ -154,6 +156,9 @@ fun LauncherScreen(
             }
 
             Spacer(Modifier.height(14.dp))
+            AdvancedEntryCard(vm = vm, onClick = onShizuku)
+
+            Spacer(Modifier.height(14.dp))
 
             // ---- RAM strip
             memory?.let { m ->
@@ -183,7 +188,7 @@ fun LauncherScreen(
             Spacer(Modifier.height(12.dp))
             LiveGuardCard(vm = vm)
             Spacer(Modifier.height(16.dp))
-            ToolsRow(onOcr = onOcr, onJunk = onJunk, onApps = onApps)
+            ToolsRow(onOcr = onOcr, onJunk = onJunk, onApps = onApps, onDevice = onDevice)
             Spacer(Modifier.height(18.dp))
 
             Text(
@@ -241,11 +246,10 @@ private fun GameCard(game: GameInfo, onClick: () -> Unit) {
                 .toBitmap(128, 128).asImageBitmap()
         }.getOrNull()
     }
-    val inf = rememberInfiniteTransition(label = "gc")
-    val sweep by inf.animateFloat(
-        -0.4f, 1.5f,
-        infiniteRepeatable(tween(5200, easing = LinearEasing)), label = "sweep"
-    )
+    // CATATAN PERFORMA: sengaja TIDAK ada animasi berjalan di sini.
+    // Dulu tiap kartu punya rememberInfiniteTransition sendiri → puluhan animasi
+    // jalan barengan dan bikin dashboard ngelag di HP kentang. Sekarang cukup
+    // gradien statis + efek tekan.
     val shape = remember { CutCornerShape(cut = 18f) }
 
     Box(
@@ -253,20 +257,6 @@ private fun GameCard(game: GameInfo, onClick: () -> Unit) {
             .clip(shape)
             .background(VeltraColors.Graphite)
             .border(1.dp, VeltraColors.Border, shape)
-            .drawWithContent {
-                drawContent()
-                drawRect(
-                    Brush.linearGradient(
-                        listOf(
-                            Color.Transparent,
-                            VeltraColors.IonCyan.copy(0.07f),
-                            Color.Transparent
-                        ),
-                        start = Offset(size.width * sweep - size.width * 0.4f, 0f),
-                        end = Offset(size.width * sweep, size.height)
-                    ), blendMode = BlendMode.Screen
-                )
-            }
             .clickable { onClick() }
             .padding(14.dp)
     ) {

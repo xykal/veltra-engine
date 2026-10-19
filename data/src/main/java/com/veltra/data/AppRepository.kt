@@ -1,18 +1,21 @@
 package com.veltra.data
 
+import android.app.usage.StorageStatsManager
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.os.Environment as OsEnv
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Build
-import android.os.UserHandle
+import android.os.Process
 import android.os.storage.StorageManager
-import android.app.usage.StorageStatsManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,8 +32,8 @@ data class AppEntry(
     val isGame: Boolean,
     val apkPath: String,
     val apkSize: Long,
-    val appSize: Long,      // APK + data (butuh izin Akses Penggunaan)
-    val cacheSize: Long,
+    val appSize: Long = 0,      // APK + data (butuh izin Akses Penggunaan)
+    val cacheSize: Long = 0,
     val firstInstall: Long,
     val lastUpdate: Long,
     val minSdk: Int,
@@ -44,12 +47,44 @@ class AppRepository @Inject constructor(
 ) {
     private val pm get() = ctx.packageManager
 
-    /** Ikon asli aplikasi (Drawable) — dipanggil di UI. */
-    fun icon(pkg: String): Drawable? = runCatching {
-        pm.getApplicationIcon(pkg)
-    }.getOrNull()
+    /** Cache ikon — biar scroll daftar aplikasi nggak decode ulang terus-terusan. */
+    private val iconCache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, Drawable?>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Drawable?>?): Boolean =
+                size > 180
+        }
+    )
 
-    suspend fun all(): List<AppEntry> = withContext(Dispatchers.IO) {
+    /**
+     * Ikon asli aplikasi. Dipanggil dari background (Dispatchers.Default) —
+     * dulu ini jalan di main thread dan bikin daftar aplikasi ngelag parah.
+     */
+    suspend fun icon(pkg: String): Drawable? = withContext(Dispatchers.Default) {
+        iconCache[pkg] ?: runCatching {
+            pm.getApplicationIcon(pkg).also { iconCache[pkg] = it }
+        }.getOrNull()
+    }
+
+    fun canReadSizes(): Boolean = runCatching {
+        val am = ctx.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+        if (Build.VERSION.SDK_INT >= 30) {
+            am.unsafeCheckOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(), ctx.packageName
+            ) == android.app.AppOpsManager.MODE_ALLOWED
+        } else @Suppress("DEPRECATION") {
+            am.checkOpNoThrow(
+                android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(), ctx.packageName
+            ) == android.app.AppOpsManager.MODE_ALLOWED
+        }
+    }.getOrDefault(false)
+
+    /**
+     * Daftar aplikasi — TANPA ukuran (cepat). Ukuran dimuat terpisah & bertahap
+     * lewat [sizesFor], karena tiap aplikasi butuh satu panggilan IPC ke sistem.
+     */
+    suspend fun list(): List<AppEntry> = withContext(Dispatchers.IO) {
         val flags = PackageManager.GET_META_DATA
         @Suppress("DEPRECATION")
         val installed = if (Build.VERSION.SDK_INT >= 33) {
@@ -59,20 +94,19 @@ class AppRepository @Inject constructor(
         }
         installed.mapNotNull { pi ->
             val ai = pi.applicationInfo ?: return@mapNotNull null
-            val sizes = querySizes(pi.packageName)
             AppEntry(
                 packageName = pi.packageName,
-                label = pm.getApplicationLabel(ai).toString(),
+                label = runCatching { pm.getApplicationLabel(ai).toString() }
+                    .getOrDefault(pi.packageName),
                 versionName = pi.versionName,
                 versionCode = if (Build.VERSION.SDK_INT >= 28) pi.longVersionCode
                 else @Suppress("DEPRECATION") pi.versionCode.toLong(),
                 isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
                 isGame = if (Build.VERSION.SDK_INT >= 26)
-                    ai.category == ApplicationInfo.CATEGORY_GAME else false,
+                    ai.category == ApplicationInfo.CATEGORY_GAME
+                else (ai.flags and ApplicationInfo.FLAG_IS_GAME) != 0,
                 apkPath = ai.sourceDir,
                 apkSize = runCatching { File(ai.sourceDir).length() }.getOrDefault(0L),
-                appSize = sizes.first,
-                cacheSize = sizes.second,
                 firstInstall = pi.firstInstallTime,
                 lastUpdate = pi.lastUpdateTime,
                 minSdk = if (Build.VERSION.SDK_INT >= 24) ai.minSdkVersion else 0,
@@ -83,32 +117,44 @@ class AppRepository @Inject constructor(
                 else @Suppress("DEPRECATION") runCatching { pm.getInstallerPackageName(pi.packageName) }
                     .getOrNull()
             )
-        }.sortedByDescending { it.appSize.coerceAtLeast(it.apkSize) }
+        }.sortedWith(compareBy({ it.label.lowercase() }, { it.packageName }))
     }
 
-    /** Ukuran app + cache. Butuh PACKAGE_USAGE_STATS; tanpa itu hanya ukuran APK. */
-    private fun querySizes(pkg: String): Pair<Long, Long> {
-        return runCatching {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return@runCatching 0L to 0L
+    /**
+     * Ukuran aplikasi (APK + data + cache). Berat: satu IPC per aplikasi,
+     * jadi dipanggil bertahap per kelompok kecil, bukan sekaligus.
+     */
+    suspend fun sizesFor(pkgs: List<String>): Map<String, Pair<Long, Long>> =
+        withContext(Dispatchers.IO) {
+            if (!canReadSizes()) return@withContext emptyMap()
             val ssm = ctx.getSystemService(Context.STORAGE_STATS_SERVICE) as StorageStatsManager
-            val user: UserHandle = android.os.Process.myUserHandle()
-            val uuid: UUID = (ctx.getSystemService(Context.STORAGE_SERVICE) as StorageManager)
-                .getUuidForPath(File(ctx.filesDir.absolutePath)) ?: StorageManager.UUID_DEFAULT
-            val stats = ssm.queryStatsForPackage(uuid, pkg, user)
-            stats.appBytes + stats.dataBytes to stats.cacheBytes
-        }.getOrDefault(0L to 0L)
-    }
+            val uuid: UUID = runCatching {
+                (ctx.getSystemService(Context.STORAGE_SERVICE) as StorageManager)
+                    .getUuidForPath(File(ctx.filesDir.absolutePath))
+            }.getOrNull() ?: StorageManager.UUID_DEFAULT
+            val user = Process.myUserHandle()
+            val out = HashMap<String, Pair<Long, Long>>(pkgs.size)
+            for (pkg in pkgs) {
+                val s = runCatching {
+                    val st = ssm.queryStatsForPackage(uuid, pkg, user)
+                    (st.appBytes + st.dataBytes) to st.cacheBytes
+                }.getOrNull() ?: (0L to 0L)
+                out[pkg] = s
+            }
+            out
+        }
 
     /** Salin APK ke folder Download publik (APK extractor / backup). */
     suspend fun extractApk(entry: AppEntry): File? = withContext(Dispatchers.IO) {
         runCatching {
-            val dir = File(
-                android.os.Environment.getExternalStoragePublicDirectory(
-                    android.os.Environment.DIRECTORY_DOWNLOADS
-                ), "VELTRA/APK"
-            ).apply { mkdirs() }
-            val out = File(dir, "${entry.label.replace(Regex("[^A-Za-z0-9._-]"), "_")}-" +
-                    "${entry.versionName ?: entry.versionCode}.apk")
+            @Suppress("DEPRECATION")
+            val base = OsEnv.getExternalStoragePublicDirectory(OsEnv.DIRECTORY_DOWNLOADS)
+            val dir = File(base, "VELTRA/APK").apply { mkdirs() }
+            val out = File(
+                dir,
+                "${entry.label.replace(Regex("[^A-Za-z0-9._-]"), "_")}-" +
+                        "${entry.versionName ?: entry.versionCode}.apk"
+            )
             File(entry.apkPath).inputStream().use { inp -> out.outputStream().use { inp.copyTo(it) } }
             out
         }.getOrNull()

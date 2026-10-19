@@ -73,12 +73,12 @@ fun LaunchSplash(onFinished: () -> Unit) {
     val alpha = animateFloatAsState(if (fadeOut) 0f else 1f, tween(320), label = "fade")
 
     LaunchedEffect(Unit) {
-        delay(320); draw = 1f
-        delay(420); boot = 1
-        delay(380); boot = 2
-        delay(340); boot = 3
-        delay(320); fadeOut = true
-        delay(300); onFinished()
+        delay(180); draw = 1f
+        delay(260); boot = 1
+        delay(240); boot = 2
+        delay(210); boot = 3
+        delay(170); fadeOut = true
+        delay(170); onFinished()
     }
 
     Box(

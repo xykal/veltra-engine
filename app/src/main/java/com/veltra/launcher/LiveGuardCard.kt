@@ -34,6 +34,7 @@ fun LiveGuardCard(
     val memory by vm.memory.collectAsState()
     val checks by vm.checks.collectAsState()
     val apps = vm.streamApps
+    val detected by vm.detectedLive.collectAsState()
     var showOem by remember { mutableStateOf(false) }
 
     Card(
@@ -67,6 +68,46 @@ fun LiveGuardCard(
                     "RAM ${m.availMb}MB bebas dari ${m.totalMb}MB • " +
                             "target FPS game disarankan ${vm.recommendedFps}",
                     color = VeltraColors.Muted, fontSize = 10.sp
+                )
+            }
+
+            // ── Deteksi live otomatis ────────────────────────────────
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF101720))
+                    .border(1.dp, VeltraColors.Border, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 11.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(7.dp).clip(CircleShape).background(
+                        if (detected != null) VeltraColors.NeoMint else VeltraColors.Muted
+                    )
+                )
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (detected != null) "TERDETEKSI: ${StreamApps.label(detected!!)}"
+                        else "Deteksi otomatis: tidak ada siaran",
+                        color = if (detected != null) VeltraColors.NeoMint else VeltraColors.Titanium,
+                        fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Baca dari notifikasi yang berjalan (tanpa daftar manual). " +
+                                "Perlu izin Akses Notifikasi.",
+                        color = VeltraColors.Muted, fontSize = 9.sp, lineHeight = 12.sp
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "IZINKAN",
+                    color = VeltraColors.IonCyan, fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                    modifier = Modifier.clickable { vm.openNotificationAccess() }
                 )
             }
 

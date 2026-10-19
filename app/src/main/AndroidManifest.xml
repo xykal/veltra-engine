@@ -47,6 +47,15 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.veltra.launcher.GameLaunchActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.VELTRA.Launch"
+            android:screenOrientation="portrait" />
+
         <service
             android:name="com.veltra.overlay.OverlayService"
             android:exported="false"
@@ -63,6 +72,19 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="On-screen crosshair overlay for aiming reference" />
+        </service>
+
+        <service
+            android:name="com.veltra.launcher.live.LiveDetectService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="conversations,alerting" />
         </service>
 
         <service

@@ -2,6 +2,7 @@ package com.veltra.launcher.tools
 
 import android.app.Application
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
@@ -9,9 +10,13 @@ import androidx.lifecycle.viewModelScope
 import com.veltra.data.AppEntry
 import com.veltra.data.AppRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 enum class AppFilter { GAMES, USER, SYSTEM, ALL }
@@ -19,6 +24,7 @@ enum class AppFilter { GAMES, USER, SYSTEM, ALL }
 data class AppsUiState(
     val loading: Boolean = true,
     val all: List<AppEntry> = emptyList(),
+    val sizes: Map<String, Pair<Long, Long>> = emptyMap(),
     val filter: AppFilter = AppFilter.GAMES,
     val query: String = "",
     val note: String = ""
@@ -33,17 +39,43 @@ class AppsViewModel @Inject constructor(
     private val _state = MutableStateFlow(AppsUiState())
     val state: StateFlow<AppsUiState> = _state
 
+    private var sizeJob: Job? = null
+
     init { load() }
 
+    /**
+     * PERFORMA: daftar aplikasi dimuat dulu (cepat), ukuran menyusul bertahap
+     * per 20 aplikasi. Dulu semua ukuran dihitung sekaligus di awal → ratusan
+     * panggilan IPC ke sistem dan layar membeku beberapa detik.
+     */
     fun load() = viewModelScope.launch {
-        _state.value = _state.value.copy(loading = true)
-        val list = runCatching { repo.all() }.getOrDefault(emptyList())
+        _state.value = AppsUiState(loading = true, filter = _state.value.filter)
+        val list = runCatching { repo.list() }.getOrDefault(emptyList())
         _state.value = _state.value.copy(
             loading = false,
             all = list,
-            note = if (list.isEmpty()) "Tidak ada aplikasi terbaca. Izinkan Akses Penggunaan untuk detail ukuran."
+            note = if (list.isEmpty()) "Tidak ada aplikasi terbaca."
             else "${list.size} aplikasi terpasang"
         )
+        loadSizesProgressive(list.map { it.packageName })
+    }
+
+    private fun loadSizesProgressive(pkgs: List<String>) {
+        sizeJob?.cancel()
+        sizeJob = viewModelScope.launch {
+            val acc = HashMap<String, Pair<Long, Long>>()
+            pkgs.chunked(20).forEach { chunk ->
+                if (!isActive) return@launch
+                val part = runCatching { repo.sizesFor(chunk) }.getOrDefault(emptyMap())
+                acc.putAll(part)
+                _state.value = _state.value.copy(sizes = acc.toMap())
+            }
+            if (acc.isEmpty()) {
+                _state.value = _state.value.copy(
+                    note = "Ukuran detail butuh izin Akses Penggunaan (yang ditampilkan ukuran APK)."
+                )
+            }
+        }
     }
 
     fun filter(f: AppFilter) { _state.value = _state.value.copy(filter = f) }
@@ -61,7 +93,8 @@ class AppsViewModel @Inject constructor(
         else base.filter { it.label.contains(s.query, true) || it.packageName.contains(s.query, true) }
     }
 
-    fun icon(pkg: String) = repo.icon(pkg)
+    /** Ikon dimuat di background + di-cache — tidak pernah di main thread. */
+    suspend fun icon(pkg: String): Drawable? = withContext(Dispatchers.Default) { repo.icon(pkg) }
 
     fun launch(pkg: String): Boolean {
         val intent = getApplication<Application>().packageManager.getLaunchIntentForPackage(pkg)
@@ -72,8 +105,10 @@ class AppsViewModel @Inject constructor(
     }
 
     fun openDetails(pkg: String) {
-        val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-            Uri.parse("package:$pkg")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val i = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:$pkg")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { getApplication<Application>().startActivity(i) }
     }
 
