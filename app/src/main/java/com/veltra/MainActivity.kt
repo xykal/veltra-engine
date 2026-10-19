@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.veltra.core.LaunchSplash
 import com.veltra.core.VeltraTheme
+import com.veltra.launcher.ProfilesScreen
 import com.veltra.launcher.LauncherScreen
 import com.veltra.launcher.SettingsScreen
 import com.veltra.launcher.ShizukuHubScreen
@@ -58,7 +59,14 @@ fun VeltraRoot() {
                         onDevice = { nav.navigate("device") }
                     )
                 }
-                composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }, onShizuku = { nav.navigate("shizuku") }) }
+                composable("settings") {
+                    SettingsScreen(
+                        onBack = { nav.popBackStack() },
+                        onShizuku = { nav.navigate("shizuku") },
+                        onProfiles = { nav.navigate("profiles") }
+                    )
+                }
+                composable("profiles") { ProfilesScreen(onBack = { nav.popBackStack() }) }
                 composable("shizuku") { ShizukuHubScreen(onBack = { nav.popBackStack() }) }
                 composable("ocr") { OcrScreen(onBack = { nav.popBackStack() }) }
                 composable("junk") { JunkScreen(onBack = { nav.popBackStack() }) }

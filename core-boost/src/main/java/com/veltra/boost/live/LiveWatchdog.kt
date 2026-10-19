@@ -20,6 +20,9 @@ object LiveWatchdog {
     private var job: Job? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** Sedang menjaga live? Dipakai profil per-game supaya nggak start dobel. */
+    fun isRunning(): Boolean = job?.isActive == true
+
     fun start(ctx: Context, target: String, intervalMs: Long = 5_000) {
         if (job?.isActive == true) return
         val guard = LiveGuardProvider.get(ctx)

@@ -49,6 +49,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
 
     @Inject lateinit var gameDetector: GameDetector
     @Inject lateinit var boostEngine: BoostEngine
+    @Inject lateinit var profileStore: com.veltra.boost.profile.ProfileStore
+    @Inject lateinit var advanced: com.veltra.boost.advanced.AdvancedManager
 
     private lateinit var wm: WindowManager
     private var panelView: ComposeView? = null
@@ -73,10 +75,91 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         savedState.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        PanelState.panelRunning = true
         startAsForeground()
         attachPanel()
+        startProfileWatcher()
         startAutoHideWatcher()
         startRamWatcher()
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PROFIL PER-GAME — diterapkan otomatis saat game muncul di depan
+    // ─────────────────────────────────────────────────────────────
+
+    /** Cache profil di memori: overlay nggak perlu baca DataStore tiap 3 detik. */
+    private var profileMap: Map<String, com.veltra.boost.profile.GameProfile> = emptyMap()
+
+    private fun startProfileWatcher() {
+        scope.launch {
+            profileStore.profiles.collect { profileMap = it }
+        }
+        scope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            while (isActive) {
+                val fg = gameDetector.foregroundPackage()
+                val inGame = fg != null && gameDetector.isGame(fg)
+                if (inGame && fg != PanelState.lastProfilePkg) {
+                    PanelState.lastProfilePkg = fg
+                    applyProfile(fg!!)
+                } else if (!inGame && fg != null && PanelState.lastProfilePkg != null) {
+                    // keluar dari game → lepas penanda, biar masuk lagi nanti diterapkan ulang
+                    PanelState.lastProfilePkg = null
+                }
+                delay(3_000)
+            }
+        }
+    }
+
+    /**
+     * Terapkan profil sebuah game.
+     *
+     * Urutannya penting: hint FPS dipasang TERAKHIR supaya nggak ketimpa
+     * nilai bawaan dari Live Guard atau dari Game Mode.
+     */
+    private fun applyProfile(pkg: String) {
+        val p = profileMap[pkg]
+            ?: com.veltra.boost.profile.GameProfile.defaultFor(pkg)
+        if (!p.isCustom) return
+
+        // 1. Bersihkan gangguan sesuai level
+        val mode = when (p.boost) {
+            com.veltra.boost.profile.GameProfile.BoostLevel.HEMAT ->
+                com.veltra.boost.BoostEngine.Mode.HEMAT
+            com.veltra.boost.profile.GameProfile.BoostLevel.SEIMBANG ->
+                com.veltra.boost.BoostEngine.Mode.SAFE
+            com.veltra.boost.profile.GameProfile.BoostLevel.MAKSIMAL ->
+                com.veltra.boost.BoostEngine.Mode.AGGRESSIVE
+        }
+        boostEngine.runSafeBoost(mode)
+
+        // 2. Mode senyap
+        if (p.quiet != PanelState.quietOn) setQuiet(p.quiet)
+
+        // 3. Crosshair
+        if (p.crosshair && !PanelState.crosshairOn) toggleCrosshair()
+        else if (!p.crosshair && PanelState.crosshairOn) toggleCrosshair()
+
+        // 4. Penjaga live (butuh aplikasi live terpasang)
+        if (p.liveGuard) {
+            val stream = com.veltra.boost.live.StreamApps.installedStreamApps(this).firstOrNull()
+            if (stream != null && com.veltra.boost.live.LiveWatchdog.isRunning().not()) {
+                boostEngine.runLiveBoost(stream)
+            }
+        }
+
+        // 5. Kunci refresh rate & FPS — cuma jalan kalau Shizuku/root aktif
+        if (p.hzLock > 0 || p.fpsLock > 0) {
+            scope.launch {
+                runCatching {
+                    if (p.hzLock > 0) advanced.actions().lockRefreshRate(p.hzLock)
+                    if (p.fpsLock > 0) advanced.actions().lockGameFps(pkg, p.fpsLock)
+                }
+            }
+        }
+
+        // 6. Hint FPS — paling akhir
+        PanelState.targetFps = p.targetFps
+        com.veltra.boost.HintManager.setTargetFps(p.targetFps)
     }
 
     private fun startAsForeground() {
@@ -263,19 +346,22 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
      * interruption filter (DND beneran). Kalau belum, pakai ringer mode
      * (senyap sederhana) — jujur, ini bukan DND penuh.
      */
-    private fun toggleQuiet() {
+    /** Nyalakan/matikan mode senyap (dipakai tombol panel dan profil per-game). */
+    fun toggleQuiet() = setQuiet(!PanelState.quietOn)
+
+    private fun setQuiet(on: Boolean) {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         val hasPolicy = if (Build.VERSION.SDK_INT >= 23) nm.isNotificationPolicyAccessGranted else false
-        PanelState.quietOn = !PanelState.quietOn
+        PanelState.quietOn = on
         runCatching {
             if (hasPolicy) {
                 nm.setInterruptionFilter(
-                    if (PanelState.quietOn) NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                    if (on) NotificationManager.INTERRUPTION_FILTER_PRIORITY
                     else NotificationManager.INTERRUPTION_FILTER_ALL
                 )
             } else {
                 val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
-                am.ringerMode = if (PanelState.quietOn) android.media.AudioManager.RINGER_MODE_SILENT
+                am.ringerMode = if (on) android.media.AudioManager.RINGER_MODE_SILENT
                 else android.media.AudioManager.RINGER_MODE_NORMAL
             }
         }
@@ -321,6 +407,8 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
     }
 
     override fun onDestroy() {
+        PanelState.panelRunning = false
+        PanelState.lastProfilePkg = null
         scope.cancel()
         panelView?.let { runCatching { wm.removeView(it) } }
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
@@ -349,6 +437,21 @@ class OverlayService : Service(), LifecycleOwner, SavedStateRegistryOwner {
         const val EXTRA_SIDE = "panel_side"
 
         fun hasPermission(ctx: Context): Boolean = Settings.canDrawOverlays(ctx)
+
+        /**
+         * Nyalakan panel memakai pengaturan terakhir yang dipakai aplikasi.
+         * Dipakai ubin Quick Settings, yang nggak bisa baca DataStore modul app.
+         */
+        fun startSaved(ctx: Context) {
+            start(ctx, PanelState.lastAutoHide, PanelState.lastMode, PanelState.lastSide)
+        }
+
+        /** Matikan panel + monitor + crosshair sekaligus. */
+        fun stopAll(ctx: Context) {
+            stop(ctx)
+            com.veltra.boost.MonitorService.stop(ctx)
+            com.veltra.overlay.crosshair.CrosshairService.stop(ctx)
+        }
 
         /** Nyalakan panel. Harus dipanggil saat aplikasi masih di depan (Android 12+). */
         fun start(

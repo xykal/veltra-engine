@@ -105,6 +105,39 @@
                 android:value="Background performance metrics sampling" />
         </service>
 
+        <!-- ── Ubin Quick Settings ───────────────────────────────────── -->
+        <service
+            android:name="com.veltra.launcher.qs.VeltraTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_veltra_tile"
+            android:label="@string/tile_panel_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name="com.veltra.launcher.qs.VeltraBoostTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_veltra_boost_tile"
+            android:label="@string/tile_boost_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Aktivitas bening: jalan keluar kedua kalau Android 15 menolak
+             service dimulai dari background (lihat TileActionActivity). -->
+        <activity
+            android:name="com.veltra.launcher.qs.TileActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:theme="@style/Theme.VELTRA.Tile" />
+
         <meta-data
             android:name="android.game_mode_config"
             android:resource="@xml/game_mode_config" />

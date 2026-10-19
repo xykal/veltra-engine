@@ -35,10 +35,20 @@ class BoostEngine @Inject constructor(
 
     init { LiveGuardProvider.bind(liveGuard) }
 
-    enum class Mode { SAFE, AGGRESSIVE }
+    enum class Mode { HEMAT, SAFE, AGGRESSIVE }
 
+    /**
+     * Bersihkan gangguan, lalu minta performa ke sistem.
+     *
+     * - HEMAT     : tidak membunuh proses apa pun (cocok buat HP 2GB atau lagi live)
+     * - SAFE      : satu putaran pembersihan proses cache
+     * - AGGRESSIVE: dua putaran (proses cache generasi kedua ikut kebuang)
+     */
     fun runSafeBoost(mode: Mode = Mode.SAFE) {
-        trimMemory()
+        if (mode != Mode.HEMAT) {
+            trimMemory()
+            if (mode == Mode.AGGRESSIVE) trimMemory()
+        }
         requestPerformanceHint()
     }
 

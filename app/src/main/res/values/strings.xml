@@ -4,4 +4,13 @@
     <string name="subtitle">Game Launcher &amp; FPS Stabilizer</string>
     <string name="overlay_permission_title">Izin Overlay</string>
     <string name="overlay_permission_desc">VELTRA butuh izin overlay untuk menampilkan panel FPS di dalam game.</string>
+
+    <!-- Ubin Quick Settings -->
+    <string name="tile_panel_label">Panel VELTRA</string>
+    <string name="tile_boost_label">Stabilkan</string>
+    <string name="tile_boost_hint">Bersihkan RAM &amp; hint performa</string>
+    <string name="tile_boost_done">Selesai</string>
+    <string name="tile_on">Menyala</string>
+    <string name="tile_off">Mati</string>
+    <string name="tile_need_permission">Izin overlay belum ada</string>
 </resources>

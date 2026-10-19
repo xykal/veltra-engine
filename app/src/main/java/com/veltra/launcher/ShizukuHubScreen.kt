@@ -419,4 +419,4 @@ private fun HubButton(
     )
 }
 
-private fun Modifier.clickableCard(onClick: () -> Unit): Modifier = cardClick(onClick)
+private fun Modifier.clickableCard(onClick: () -> Unit): Modifier = cardClick(onClick = onClick)

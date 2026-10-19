@@ -38,7 +38,8 @@ class LauncherViewModel @Inject constructor(
     private val liveGuard: LiveGuard,
     private val gameDetector: GameDetector,
     private val settings: SettingsRepository,
-    private val advanced: com.veltra.boost.advanced.AdvancedManager
+    private val advanced: com.veltra.boost.advanced.AdvancedManager,
+    private val profiles: com.veltra.boost.profile.ProfileStore
 ) : ViewModel() {
 
     val games: StateFlow<List<GameInfo>> = repo.observeGames()
@@ -286,19 +287,23 @@ class LauncherViewModel @Inject constructor(
         if (!OverlayService.hasPermission(ctx)) return
         _panelRunning.value = true
         MonitorService.start(ctx)
+        com.veltra.overlay.PanelState.lastAutoHide = autoHide.value
+        com.veltra.overlay.PanelState.lastMode = panelMode()
+        com.veltra.overlay.PanelState.lastSide = panelSide()
         // sinkronkan keadaan panel (crosshair/FPS/senyap) sebelum window dibuat
         com.veltra.overlay.PanelState.crosshair = crosshair.value
         com.veltra.overlay.PanelState.crosshairOn = crosshair.value.enabled
         OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
         // crosshair nyala bareng panel kalau memang diaktifkan
         if (crosshair.value.enabled) CrosshairService.start(ctx, crosshair.value)
+        com.veltra.launcher.qs.VeltraTileService.requestRefresh(ctx)
     }
 
     fun stopPanel() {
-        OverlayService.stop(ctx)
-        MonitorService.stop(ctx)
+        OverlayService.stopAll(ctx)
         CrosshairService.stop(ctx)
         _panelRunning.value = false
+        com.veltra.launcher.qs.VeltraTileService.requestRefresh(ctx)
     }
 
     // ---------- LIVE GUARD ----------
@@ -380,11 +385,59 @@ class LauncherViewModel @Inject constructor(
             .onFailure { launchDirect(packageName) }
     }
 
+    // ---------- PROFIL PER-GAME ----------
+    val gameProfiles: StateFlow<Map<String, com.veltra.boost.profile.GameProfile>> =
+        profiles.profiles.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    fun saveProfile(p: com.veltra.boost.profile.GameProfile) {
+        viewModelScope.launch { profiles.save(p) }
+    }
+
+    fun removeProfile(pkg: String) {
+        viewModelScope.launch { profiles.remove(pkg) }
+    }
+
+    /**
+     * Terapkan profil sebuah game SEBELUM game dibuka.
+     * Sebagian besar juga diterapkan OverlayService saat game muncul di depan —
+     * ini cuma memastikan hint FPS & mode senyap sudah benar sejak detik pertama.
+     */
+    private fun applyProfile(packageName: String) {
+        val p = gameProfiles.value[packageName] ?: return
+        if (!p.isCustom) return
+
+        com.veltra.overlay.PanelState.targetFps = p.targetFps
+        com.veltra.boost.HintManager.setTargetFps(p.targetFps)
+
+        when (p.boost) {
+            com.veltra.boost.profile.GameProfile.BoostLevel.HEMAT ->
+                boost.runSafeBoost(com.veltra.boost.BoostEngine.Mode.HEMAT)
+            com.veltra.boost.profile.GameProfile.BoostLevel.SEIMBANG ->
+                boost.runSafeBoost(com.veltra.boost.BoostEngine.Mode.SAFE)
+            com.veltra.boost.profile.GameProfile.BoostLevel.MAKSIMAL ->
+                boost.runSafeBoost(com.veltra.boost.BoostEngine.Mode.AGGRESSIVE)
+        }
+
+        if (p.fpsLock > 0 || p.hzLock > 0) {
+            viewModelScope.launch {
+                runCatching {
+                    if (p.hzLock > 0) advanced.actions().lockRefreshRate(p.hzLock)
+                    if (p.fpsLock > 0) advanced.actions().lockGameFps(packageName, p.fpsLock)
+                }
+            }
+        }
+    }
+
     private fun launchDirectPreparation(packageName: String) {
+        applyProfile(packageName)
         boost.prepareFor(packageName)
         if (OverlayService.hasPermission(ctx) && autoStart.value) {
             MonitorService.start(ctx)
             com.veltra.overlay.PanelState.crosshair = crosshair.value
+            // simpan gaya panel terakhir → ubin Quick Settings bisa pakai gaya yang sama
+            com.veltra.overlay.PanelState.lastAutoHide = autoHide.value
+            com.veltra.overlay.PanelState.lastMode = panelMode()
+            com.veltra.overlay.PanelState.lastSide = panelSide()
             OverlayService.start(ctx, autoHide.value, panelMode(), panelSide())
             _panelRunning.value = true
         }

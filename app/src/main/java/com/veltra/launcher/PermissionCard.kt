@@ -4,18 +4,20 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,67 +37,72 @@ fun PermissionCard(vm: LauncherViewModel) {
     val usageOk by vm.usageGranted
     val panelOn by vm.panelRunning
 
-    Card(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = VeltraColors.Graphite),
-        border = androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(
-                "IZIN & PANEL",
-                color = VeltraColors.Titanium,
-                fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp
-            )
-            Spacer(Modifier.height(10.dp))
-
-            PermRow(
-                title = "Tampilkan di atas aplikasi lain",
-                desc = if (overlayOk) "Sudah aktif — panel bisa muncul di dalam game."
-                else "Wajib. Tanpa ini panel VELTRA tidak bisa muncul di atas game.",
-                ok = overlayOk,
-                cta = "BERI IZIN",
-                onClick = { vm.requestOverlay() }
-            )
-            Spacer(Modifier.height(10.dp))
-
-            PermRow(
-                title = "Akses penggunaan",
-                desc = if (usageOk) "Sudah aktif — panel otomatis sembunyi di luar game."
-                else "Opsional. Dipakai untuk mendeteksi game dan menyembunyikan panel otomatis. " +
-                        "Data hanya diproses di perangkat, tidak dikirim ke mana pun.",
-                ok = usageOk,
-                cta = "BUKA",
-                onClick = { vm.requestUsage() }
-            )
-
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { if (panelOn) vm.stopPanel() else vm.startPanel() },
-                    enabled = overlayOk,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(13.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (panelOn) VeltraColors.Graphite else VeltraColors.Cobalt
-                    ),
-                    border = if (panelOn)
-                        androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
-                    else null
-                ) {
-                    Text(
-                        if (panelOn) "MATIKAN PANEL" else "UJI PANEL",
-                        fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp
+    VeltraCard(
+        title = "IZIN & PANEL",
+        subtitle = when {
+            overlayOk && usageOk -> "Semua izin siap — panel bisa muncul di dalam game."
+            overlayOk -> "Overlay siap. Akses penggunaan belum ada (panel tidak bisa auto-hide)."
+            else -> "Izin overlay belum ada — panel belum bisa muncul di atas game."
+        },
+        icon = Icons.Rounded.Shield,
+        accent = if (overlayOk && usageOk) VeltraColors.NeoMint else VeltraColors.Amber,
+        action = {
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        (if (overlayOk) VeltraColors.NeoMint else VeltraColors.Amber).copy(.13f)
                     )
-                }
-            }
-            if (!overlayOk) {
-                Spacer(Modifier.height(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StatusDot(if (overlayOk) VeltraColors.NeoMint else VeltraColors.Amber)
+                Spacer(Modifier.width(5.dp))
                 Text(
-                    "Belum bisa diuji: izin overlay belum aktif.",
-                    color = VeltraColors.Amber, fontSize = 9.5.sp
+                    if (overlayOk) "SIAP" else "BELUM",
+                    color = if (overlayOk) VeltraColors.NeoMint else VeltraColors.Amber,
+                    fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp
                 )
             }
+        }
+    ) {
+        PermRow(
+            title = "Tampilkan di atas aplikasi lain",
+            desc = if (overlayOk) "Sudah aktif — panel bisa muncul di dalam game."
+            else "Wajib. Tanpa ini panel VELTRA tidak bisa muncul di atas game.",
+            ok = overlayOk,
+            cta = "BERI IZIN",
+            onClick = { vm.requestOverlay() }
+        )
+
+        Spacer(Modifier.height(9.dp))
+
+        PermRow(
+            title = "Akses penggunaan",
+            desc = if (usageOk) "Sudah aktif — panel otomatis sembunyi di luar game."
+            else "Opsional. Dipakai untuk mendeteksi game dan menyembunyikan panel otomatis. " +
+                    "Data hanya diproses di perangkat, tidak dikirim ke mana pun.",
+            ok = usageOk,
+            cta = "BUKA",
+            onClick = { vm.requestUsage() }
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        if (overlayOk) {
+            VeltraPrimitives.CobaltButton(
+                label = if (panelOn) "MATIKAN PANEL" else "UJI PANEL",
+                icon = Icons.Rounded.LockOpen,
+                modifier = Modifier.fillMaxWidth()
+            ) { if (panelOn) vm.stopPanel() else vm.startPanel() }
+        } else {
+            VeltraNote(
+                title = "BELUM BISA DIUJI",
+                lines = listOf(
+                    "Panel hanya bisa dicoba setelah izin overlay aktif. " +
+                            "Android menganggap ini izin berisiko tinggi, jadi harus lu berikan sendiri lewat layar pengaturan sistem."
+                )
+            )
         }
     }
 }
@@ -109,21 +116,15 @@ private fun PermRow(
     onClick: () -> Unit
 ) {
     Row(verticalAlignment = Alignment.Top) {
-        Box(
-            Modifier
-                .size(8.dp)
-                .background(
-                    if (ok) VeltraColors.NeoMint else VeltraColors.Amber,
-                    androidx.compose.foundation.shape.CircleShape
-                )
-                .offset(y = 4.dp)
-        )
+        Box(Modifier.size(8.dp).offset(y = 4.dp)) {
+            StatusDot(if (ok) VeltraColors.NeoMint else VeltraColors.Amber)
+        }
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
             Text(title, color = VeltraColors.Titanium, fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(3.dp))
-            Text(desc, color = VeltraColors.Muted, fontSize = 10.sp)
+            Text(desc, color = VeltraColors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
         }
         if (!ok) {
             Spacer(Modifier.width(8.dp))
@@ -132,7 +133,10 @@ private fun PermRow(
                 color = VeltraColors.IonCyan,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onClick() }.padding(top = 2.dp)
+                letterSpacing = 1.sp,
+                modifier = Modifier
+                    .clickable { onClick() }
+                    .padding(top = 2.dp)
             )
         }
     }

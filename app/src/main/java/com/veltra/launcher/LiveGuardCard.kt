@@ -1,13 +1,13 @@
 package com.veltra.launcher
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,10 +16,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.veltra.boost.live.LiveGuard
 import com.veltra.boost.live.OemGuide
 import com.veltra.boost.live.StreamApps
 import com.veltra.core.VeltraColors
+
+private val LiveRed = Color(0xFFFF3B5C)
 
 /**
  * LIVE GUARD — kartu khusus buat:
@@ -37,80 +38,75 @@ fun LiveGuardCard(
     val detected by vm.detectedLive.collectAsState()
     var showOem by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = modifier.fillMaxWidth().animateContentSize(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = VeltraColors.Graphite),
-        border = androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
+    VeltraCard(
+        modifier = modifier,
+        title = "LIVE GUARD",
+        subtitle = memory?.let { m ->
+            "RAM ${m.availMb}MB bebas dari ${m.totalMb}MB • target FPS disarankan ${vm.recommendedFps}"
+        },
+        icon = Icons.Rounded.LiveTv,
+        accent = LiveRed,
+        action = {
+            if (live != null) {
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            (if (live == true) VeltraColors.NeoMint else VeltraColors.Amber).copy(.13f)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StatusDot(if (live == true) VeltraColors.NeoMint else VeltraColors.Amber)
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        if (live == true) "TERJAGA" else "PUTUS",
+                        color = if (live == true) VeltraColors.NeoMint else VeltraColors.Amber,
+                        fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp
+                    )
+                }
+            }
+        }
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFF3B5C)))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "LIVE GUARD",
-                    color = VeltraColors.Titanium,
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp
-                )
-                Spacer(Modifier.weight(1f))
-                live?.let { alive ->
-                    Text(
-                        if (alive) "TERJAGA" else "PUTUS",
-                        color = if (alive) VeltraColors.NeoMint else VeltraColors.Amber,
-                        fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp
-                    )
-                }
+        // ── Deteksi live otomatis ────────────────────────────────
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF101720))
+                .border(1.dp, VeltraColors.Border, RoundedCornerShape(12.dp))
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(7.dp)) {
+                StatusDot(if (detected != null) VeltraColors.NeoMint else VeltraColors.Muted)
             }
-
-            Spacer(Modifier.height(6.dp))
-            memory?.let { m ->
+            Spacer(Modifier.width(9.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    "RAM ${m.availMb}MB bebas dari ${m.totalMb}MB • " +
-                            "target FPS game disarankan ${vm.recommendedFps}",
-                    color = VeltraColors.Muted, fontSize = 10.sp
+                    if (detected != null) "TERDETEKSI: ${StreamApps.label(detected!!)}"
+                    else "Deteksi otomatis: tidak ada siaran",
+                    color = if (detected != null) VeltraColors.NeoMint else VeltraColors.Titanium,
+                    fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold
                 )
-            }
-
-            // ── Deteksi live otomatis ────────────────────────────────
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF101720))
-                    .border(1.dp, VeltraColors.Border, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 11.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier.size(7.dp).clip(CircleShape).background(
-                        if (detected != null) VeltraColors.NeoMint else VeltraColors.Muted
-                    )
-                )
-                Spacer(Modifier.width(9.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (detected != null) "TERDETEKSI: ${StreamApps.label(detected!!)}"
-                        else "Deteksi otomatis: tidak ada siaran",
-                        color = if (detected != null) VeltraColors.NeoMint else VeltraColors.Titanium,
-                        fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "Baca dari notifikasi yang berjalan (tanpa daftar manual). " +
-                                "Perlu izin Akses Notifikasi.",
-                        color = VeltraColors.Muted, fontSize = 9.sp, lineHeight = 12.sp
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    "IZINKAN",
-                    color = VeltraColors.IonCyan, fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
-                    modifier = Modifier.clickable { vm.openNotificationAccess() }
+                    "Baca dari notifikasi yang berjalan (tanpa daftar manual). " +
+                            "Perlu izin Akses Notifikasi.",
+                    color = VeltraColors.Muted, fontSize = 9.sp, lineHeight = 12.sp
                 )
             }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "IZINKAN",
+                color = VeltraColors.IonCyan, fontSize = 9.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                modifier = Modifier.clickable { vm.openNotificationAccess() }
+            )
+        }
 
+        // ── Preflight ───────────────────────────────────────────
+        if (checks.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             checks.forEach { c ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -133,50 +129,44 @@ fun LiveGuardCard(
                 }
                 Spacer(Modifier.height(6.dp))
             }
+        }
 
+        // ── Tombol jaga ─────────────────────────────────────────
+        if (apps.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 apps.take(2).forEach { pkg ->
                     val active = live == true
-                    Button(
-                        onClick = { if (active) vm.stopLiveGuard() else vm.startLiveGuard(pkg) },
-                        modifier = Modifier.weight(1f).height(44.dp),
-                        shape = RoundedCornerShape(13.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (active) VeltraColors.Graphite else Color(0xFFFF3B5C),
-                            contentColor = Color.White
-                        ),
-                        border = if (active)
-                            androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
-                        else null
+                    VeltraPrimitives.GhostChip(
+                        label = if (active) "STOP" else "JAGA ${StreamApps.label(pkg).uppercase()}",
+                        selected = !active,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            if (active) "STOP" else "JAGA ${StreamApps.label(pkg).uppercase()}",
-                            fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp
-                        )
+                        if (active) vm.stopLiveGuard() else vm.startLiveGuard(pkg)
                     }
                 }
             }
+        }
 
-            Spacer(Modifier.height(10.dp))
-            Text(
-                if (showOem) "▾  Tutup panduan ${OemGuide.detect()}" else "▸  Kenapa live gue masih putus? (${OemGuide.detect()})",
-                color = VeltraColors.IonCyan, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable { showOem = !showOem }
-            )
-            if (showOem) {
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (showOem) "▾  Tutup panduan ${OemGuide.detect()}"
+            else "▸  Kenapa live gue masih putus? (${OemGuide.detect()})",
+            color = VeltraColors.IonCyan, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clickable { showOem = !showOem }
+        )
+        if (showOem) {
+            Spacer(Modifier.height(8.dp))
+            OemGuide.steps().forEach { step ->
+                Text(step.title, color = VeltraColors.Titanium, fontSize = 10.5.sp,
+                    fontWeight = FontWeight.SemiBold)
+                Text(step.detail, color = VeltraColors.Muted, fontSize = 10.sp, lineHeight = 14.sp)
                 Spacer(Modifier.height(8.dp))
-                OemGuide.steps().forEach { step ->
-                    Text(step.title, color = VeltraColors.Titanium, fontSize = 10.5.sp,
-                        fontWeight = FontWeight.SemiBold)
-                    Text(step.detail, color = VeltraColors.Muted, fontSize = 10.sp)
-                    Spacer(Modifier.height(8.dp))
-                }
-                Text(
-                    "Sumber: dontkillmyapp.com — ROM pabrik sering lebih ganas dari Android standar.",
-                    color = Color(0xFF6B7588), fontSize = 9.sp
-                )
             }
+            Text(
+                "Sumber: dontkillmyapp.com — ROM pabrik sering lebih ganas dari Android standar.",
+                color = Color(0xFF6B7588), fontSize = 9.sp
+            )
         }
     }
 }

@@ -132,8 +132,9 @@ fun VeltraRow(
  * `clickable` itu fungsi ekstensi Modifier, jadi harus dipanggil punya
  * penerima (`this`), bukan dipanggil langsung.
  */
-fun Modifier.cardClick(onClick: () -> Unit): Modifier =
+fun Modifier.cardClick(enabled: Boolean = true, onClick: () -> Unit): Modifier =
     this.clickable(
+        enabled = enabled,
         indication = null,
         interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
     ) { onClick() }

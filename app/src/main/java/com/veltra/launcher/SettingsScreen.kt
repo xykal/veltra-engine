@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Games
+import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.veltra.core.VeltraColors
+import com.veltra.BuildConfig
 
 /**
  * Settings — panel behaviour, izin, dan transparansi.
@@ -29,6 +32,7 @@ import com.veltra.core.VeltraColors
 fun SettingsScreen(
     onBack: () -> Unit,
     onShizuku: () -> Unit = {},
+    onProfiles: () -> Unit = {},
     vm: LauncherViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val autoHide by vm.autoHide.collectAsState()
@@ -44,6 +48,7 @@ fun SettingsScreen(
     val crosshair by vm.crosshair.collectAsState()
     val sensitivity by vm.sensitivity.collectAsState()
     val lockedHz by vm.lockedHz.collectAsState()
+    val profiles by vm.gameProfiles.collectAsState()
     val targetName = games.firstOrNull { it.packageName == advTarget }?.name ?: advTarget
 
     LaunchedEffect(Unit) { vm.refreshAdvanced() }
@@ -157,6 +162,25 @@ fun SettingsScreen(
         )
 
         Spacer(Modifier.height(18.dp))
+        SectionTitle("PROFIL GAME", "Pengaturan per-game yang dipakai otomatis saat game dibuka.")
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = VeltraColors.Graphite),
+            border = androidx.compose.foundation.BorderStroke(1.dp, VeltraColors.Border)
+        ) {
+            Column {
+                val custom = profiles.count { it.value.isCustom }
+                NavItem(
+                    icon = Icons.Rounded.Games,
+                    title = "Profil per-game",
+                    subtitle = if (custom == 0) "Semua game masih pakai pengaturan bawaan"
+                    else "$custom game punya profil sendiri",
+                    onClick = onProfiles
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
         SectionTitle("CROSSHAIR", "Gambar bantu bidik. Tidak menyentuh game sama sekali.")
         CrosshairCard(
             config = crosshair,
@@ -210,7 +234,7 @@ fun SettingsScreen(
                         Text("Game Performance System", color = VeltraColors.Muted, fontSize = 10.sp)
                     }
                     Spacer(Modifier.weight(1f))
-                    Text("v1.0.2", color = VeltraColors.Muted, fontSize = 10.sp,
+                    Text("v${BuildConfig.VERSION_NAME}", color = VeltraColors.Muted, fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace)
                 }
                 Spacer(Modifier.height(14.dp))
@@ -310,6 +334,44 @@ private fun StyleChip(
         }
         Spacer(Modifier.height(5.dp))
         Text(subtitle, color = Color(0xFF6B7588), fontSize = 8.5.sp, lineHeight = 12.sp)
+    }
+}
+
+/** Baris menu yang membuka layar lain. */
+@Composable
+private fun NavItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(VeltraColors.IonCyan.copy(.12f))
+                .border(1.dp, VeltraColors.IonCyan.copy(.35f), RoundedCornerShape(9.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = VeltraColors.IonCyan, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = VeltraColors.Titanium, fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, color = VeltraColors.Muted, fontSize = 9.5.sp, lineHeight = 13.sp)
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Rounded.KeyboardArrowRight, null, tint = VeltraColors.Muted,
+            modifier = Modifier.size(18.dp))
     }
 }
 
