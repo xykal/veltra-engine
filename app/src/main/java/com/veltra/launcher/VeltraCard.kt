@@ -3,6 +3,7 @@ package com.veltra.launcher
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -126,14 +127,16 @@ fun VeltraRow(
     )
 }
 
-/** Ubah jadi bisa diklik tanpa nambah import di tiap file. */
+/**
+ * Bikin kartu/baris bisa diklik tanpa efek riak bawaan Material.
+ * `clickable` itu fungsi ekstensi Modifier, jadi harus dipanggil punya
+ * penerima (`this`), bukan dipanggil langsung.
+ */
 fun Modifier.cardClick(onClick: () -> Unit): Modifier =
-    this.then(
-        androidx.compose.foundation.clickable(
-            indication = null,
-            interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
-        ) { onClick() }
-    )
+    this.clickable(
+        indication = null,
+        interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource()
+    ) { onClick() }
 
 /** Kotak metrik kecil (label + angka) — ukuran seragam, nggak gepeng. */
 @Composable

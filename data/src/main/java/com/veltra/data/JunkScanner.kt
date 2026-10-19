@@ -58,9 +58,10 @@ class JunkScanner @Inject constructor(
     private val skipDirs = setOf(
         "Android", ".git", "node_modules", ".thumbnails_nomedia", "system", "proc"
     )
-    private const val MAX_DEPTH = 6
-    private const val MAX_ENTRIES = 25_000
-    private const val MAX_MILLIS = 10_000L
+    // Batas pemindaian — bikin pembersih nggak pernah bikin HP nge-freeze
+    private val maxDepth = 6
+    private val maxEntries = 25_000
+    private val maxMillis = 10_000L
     private val bigThreshold = 100L * 1024 * 1024
 
     suspend fun scan(onProgress: ((Int) -> Unit)? = null): JunkReport =
@@ -75,7 +76,7 @@ class JunkScanner @Inject constructor(
                 count = walkSmart(root, items, seen, count, startAt) { n ->
                     onProgress?.invoke(n)
                 }
-                if (count >= MAX_ENTRIES || System.currentTimeMillis() - startAt > MAX_MILLIS) {
+                if (count >= maxEntries || System.currentTimeMillis() - startAt > maxMillis) {
                     truncated = true
                     break
                 }
@@ -104,9 +105,9 @@ class JunkScanner @Inject constructor(
         if (root.isDirectory) stack += root to 0
 
         while (stack.isNotEmpty()) {
-            if (count >= MAX_ENTRIES || System.currentTimeMillis() - startAt > MAX_MILLIS) return count
+            if (count >= maxEntries || System.currentTimeMillis() - startAt > maxMillis) return count
             val (dir, depth) = stack.removeLast()
-            if (depth > MAX_DEPTH) continue
+            if (depth > maxDepth) continue
 
             val children = runCatching { dir.listFiles() }.getOrNull()
             if (children.isNullOrEmpty()) {
